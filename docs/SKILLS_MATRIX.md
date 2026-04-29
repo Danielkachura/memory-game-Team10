@@ -7,6 +7,7 @@ This file defines the capabilities expected from each role so work can be assign
 |---|---|---|---|
 | `[CTO]` | architecture, prioritization, tradeoff analysis, code review | system direction, release bar | plans, reviews, decisions |
 | `[Architect]` | interface design, dependency control, domain modeling | module boundaries, shared contracts | architecture updates, type ownership |
+| `[UI/UX Lead]` | interaction design, readability, accessibility, motion restraint, visual hierarchy | board clarity, action affordances, demo polish | UX guidance, UI review notes, interaction acceptance details |
 | `[Tech Lead:frontend]` | React architecture, state modeling, accessibility, responsive UI | game UI, hooks, interaction design | frontend task breakdown, review notes |
 | `[Tech Lead:backend]` | API design, validation, secret handling, resilience | Claude proxy, request/response contracts | backend task breakdown, security-aware review |
 | `[QA Lead]` | test strategy, exploratory testing, regression design | release checklist, automated coverage targets | bug reports, risk sign-off |
@@ -18,6 +19,7 @@ This file defines the capabilities expected from each role so work can be assign
 ## Assignment Rules
 
 - If a task crosses module boundaries, `[Architect]` must define the contract first.
+- If a task changes how players perceive actions or state, `[UI/UX Lead]` defines the expected interaction behavior.
 - If a task affects user interaction, `[Tech Lead:frontend]` owns acceptance details.
 - If a task touches Claude requests or env vars, `[Tech Lead:backend]` and `[Security Reviewer]` both review it.
 - No feature is complete without `[QA Lead]` defining verification criteria.

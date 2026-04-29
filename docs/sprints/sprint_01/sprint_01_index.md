@@ -1,11 +1,11 @@
-# Sprint 01 - Foundation and MVP Delivery
+# Sprint 01 - Squad RPS Stabilization And Demo Flow
 
 | Field | Value |
 |---|---|
 | Sprint | 01 |
-| Goal | Ship a playable memory game MVP with secure Claude integration and demo-ready tests |
-| Status | Planned |
-| Start | 2026-04-28 |
+| Goal | Ship a stable Squad RPS vertical slice with correct combat, readable movement and duel UX, and demo-safe observability |
+| Status | In Progress |
+| Start | 2026-04-29 |
 | End | Hackathon end date |
 | CTO Owner | `[CTO]` |
 
@@ -13,11 +13,11 @@
 
 ## Sprint Objectives
 
-1. Scaffold the actual app and toolchain
-2. Build the core game loop and win condition
-3. Add scoring, timer, difficulty, and theme selection
-4. Add secure Claude-backed theme, hint, and recap flows
-5. Add enough automated coverage for confident demo use
+1. Stabilize the authoritative Python game engine
+2. Eliminate combat and board-state drift bugs
+3. Make movement, attack, reveal, and duel states readable in the React UI
+4. Add debug visibility so live gameplay bugs can be traced quickly during demo prep
+5. Expand automated coverage around combat correctness, movement legality, and hidden-info behavior
 
 ---
 
@@ -27,40 +27,44 @@
 |---|---|
 | System structure and interfaces | `[Architect]` |
 | UI/gameplay implementation plan | `[Tech Lead:frontend]` |
-| Proxy/API implementation plan | `[Tech Lead:backend]` |
+| Game engine and API implementation plan | `[Tech Lead:backend]` |
+| UX clarity and demo-facing interaction quality | `[UI/UX Lead]` |
 | Quality gates and release sign-off | `[QA Lead]` |
-| Secret handling and exposure review | `[Security Reviewer]` |
+| Hidden-state and token exposure review | `[Security Reviewer]` |
 
 ---
 
 ## Scope
 
 In scope:
-- Vite app scaffold and project scripts
-- shared domain types and constants
-- game board, cards, flip logic, timer, score, win screen
-- difficulty and theme setup flow
-- Claude proxy and frontend service wrappers
-- AI theme generation, hinting, and end-game narration
-- unit tests, integration tests, Playwright core flow
+- Python backend as authoritative match engine
+- React board flow for reveal, movement, attack, duel, tie repick, and restart
+- correct RPS combat resolution and role handling
+- movement legality and adjacency enforcement
+- debug event log visible in the app
+- AI turn safety and fallback behavior
+- unit and integration tests for high-risk gameplay rules
+- demo-safe UX polish for the main gameplay loop
 
 Out of scope:
 - accounts
 - persistence
-- leaderboards
-- multiplayer
+- production multiplayer polish
 - mobile app packaging
+- theme systems unrelated to gameplay
+- nonessential visual redesign
 
 ---
 
 ## Exit Criteria
 
-- a full easy game can be played start to finish
-- at least one Claude feature works live
-- all Claude features fail gracefully
-- unit tests cover core game logic
-- Playwright covers the main user flow
-- no browser-exposed API key
+- a full Squad RPS match can be played from reveal to result without rule-breaking bugs
+- `rock`, `paper`, and `scissors` resolve correctly in all covered cases
+- movement never swaps pieces or overwrites board state incorrectly
+- hidden enemy information stays hidden outside legal reveal moments
+- the app exposes a readable debug log of moves and duels
+- backend and frontend tests cover the highest-risk gameplay paths
+- no browser-exposed API key or leaked hidden-state authority
 
 ---
 
@@ -68,17 +72,29 @@ Out of scope:
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| App scaffold not created early enough | High | High | build setup first before feature work |
-| Claude API instability during demo | Medium | High | fallbacks, timeout, session caching |
-| Port/config drift between docs and tests | Medium | Medium | standardize on `5173` and auto-start E2E server |
-| Overbuilding beyond MVP | High | High | use PRD priorities and stop at demo-ready scope |
+| Combat state mutates incorrectly across turns | High | High | add backend rule tests and event logging |
+| Board UI misrepresents legal actions | High | High | UI/UX-led interaction review and focused frontend tests |
+| AI turn hides or overwrites player-observed state | Medium | High | keep backend authoritative and verify projections |
+| Old Memory Game docs continue to misdirect implementation | High | Medium | rewrite sprint and UI ownership docs first |
+| Overbuilding beyond demo-ready scope | High | High | keep Sprint 1 limited to stable vertical-slice gameplay |
 
 ---
 
 ## Deliverables
 
-- coherent project docs
-- app scaffold plan and ownership model
-- sprint task list with acceptance criteria
-- sprint report and review templates
-- implementation-ready architecture
+- Sprint 1 task list aligned to Squad RPS
+- stable combat and movement rule set
+- debug-log-supported gameplay loop
+- frontend interaction clarity pass for movement and attacks
+- regression coverage for combat, movement, and hidden-state safety
+
+---
+
+## Execution Plan
+
+1. Backend stabilizes canonical combat and movement behavior first.
+2. Frontend makes legal actions explicit and surfaces nearby failure feedback.
+3. UI/UX Lead validates board readability and duel comprehension.
+4. QA verifies rule correctness and demo safety with regression coverage.
+
+This sprint is successful when the team can demo the match loop without manually explaining or apologizing for the rules.
