@@ -143,17 +143,7 @@ export function GameScreen() {
                 </div>
                 <div className="board-grid" data-testid="battle-board">
                   {boardCells.map((cell) => (
-                    <div
-                      key={`${cell.row}-${cell.col}`}
-                      className={`board-slot ${!cell.piece && legalMoveTargets.has(`${cell.row}-${cell.col}`) ? "board-slot--clickable" : ""}`}
-                      onClick={
-                        !cell.piece && legalMoveTargets.has(`${cell.row}-${cell.col}`)
-                          ? () => {
-                              onEmptyCellClick(cell.row, cell.col);
-                            }
-                          : undefined
-                      }
-                    >
+                    <div key={`${cell.row}-${cell.col}`} className="board-slot">
                       <span className="board-slot__coords">{`R${cell.row} C${cell.col}`}</span>
                       {cell.piece ? (
                         <PieceButton
@@ -171,15 +161,23 @@ export function GameScreen() {
                           type="button"
                           className={`squad-cell squad-cell--empty squad-cell--emptyButton ${legalMoveTargets.has(`${cell.row}-${cell.col}`) ? "squad-cell--moveTarget" : ""}`}
                           aria-label={`Empty cell row ${cell.row} col ${cell.col}`}
-                          onClick={(event) => {
-                            event.stopPropagation();
+                          disabled={!legalMoveTargets.has(`${cell.row}-${cell.col}`)}
+                          onClick={() => {
                             onEmptyCellClick(cell.row, cell.col);
                           }}
-                        />
+                        >
+                          {legalMoveTargets.has(`${cell.row}-${cell.col}`) ? (
+                            <>
+                              <span className="squad-cell__moveLabel">Move Here</span>
+                              <span className="squad-cell__moveMeta">Advance into R{cell.row} C{cell.col}</span>
+                            </>
+                          ) : null}
+                        </button>
                       )}
                     </div>
                   ))}
                 </div>
+                {error ? <p className="status-error status-error--board">{error}</p> : null}
               </div>
 
               <div className="sidebar-stack">
@@ -267,7 +265,6 @@ export function GameScreen() {
                 ) : null}
               </div>
             </section>
-            {error ? <p className="status-error">{error}</p> : null}
           </>
         )}
       </div>
