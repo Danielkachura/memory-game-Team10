@@ -13,6 +13,7 @@ from .config import AI_TIMEOUT_SECONDS, REVEAL_SECONDS
 from .schemas import (
     MatchCreateRequest,
     PlayerAttackRequest,
+    PlayerMoveRequest,
     RevealCompleteRequest,
     SquadGenerateRequest,
     TieRepickRequest,
@@ -82,6 +83,33 @@ def balanced_weapons() -> list[Weapon]:
     return weapons
 
 
+def weapon_title(weapon: Weapon) -> str:
+    return weapon.capitalize()
+
+
+def public_piece_label(piece: dict[str, Any], viewer: Owner, phase: Phase, finished: bool) -> str:
+    is_owner = piece["owner"] == viewer
+    if not piece["alive"]:
+        if finished:
+            role_suffix = f" {piece['role']}" if piece["role"] != "soldier" else ""
+            return f"{weapon_title(piece['weapon'])}{role_suffix}"
+        return "Defeated unit"
+    if finished:
+        role_suffix = f" {piece['role']}" if piece["role"] != "soldier" else ""
+        return f"{weapon_title(piece['weapon'])}{role_suffix}"
+    if phase == "reveal":
+        return weapon_title(piece["weapon"])
+    if is_owner:
+        role_suffix = f" {piece['role']}" if piece["role"] in ("flag", "decoy") else ""
+        return f"{weapon_title(piece['weapon'])}{role_suffix}"
+    return "Hidden Operative"
+
+
+def duel_piece_label(piece: dict[str, Any]) -> str:
+    role_suffix = f" {piece['role']}" if piece["role"] in ("flag", "decoy") else ""
+    return f"{weapon_title(piece['weapon'])}{role_suffix}".strip()
+
+
 def build_piece(owner: Owner, name: str, weapon: Weapon, row: int, col: int) -> dict[str, Any]:
     return {
         "id": f"{owner}-{uuid.uuid4().hex[:8]}",
@@ -93,6 +121,10 @@ def build_piece(owner: Owner, name: str, weapon: Weapon, row: int, col: int) -> 
         "col": col,
         "alive": True,
     }
+
+
+def position_key(row: int, col: int) -> tuple[int, int]:
+    return (row, col)
 
 
 def fallback_squads() -> dict[str, list[dict[str, Any]]]:
@@ -193,15 +225,13 @@ def visible_piece(piece: dict[str, Any], viewer: Owner, phase: Phase, finished: 
     show_weapon = phase == "reveal" or is_owner or reveal_all
     show_role = (is_owner and phase != "reveal") or (reveal_all and piece["role"] != "soldier")
 
-    label = piece["name"] if is_owner or reveal_all else "Hidden Operative"
-
     return {
         "id": piece["id"],
         "owner": piece["owner"],
         "row": piece["row"],
         "col": piece["col"],
         "alive": piece["alive"],
-        "label": label,
+        "label": public_piece_label(piece, viewer, phase, finished),
         "weapon": piece["weapon"] if show_weapon and piece["alive"] else None,
         "weaponIcon": WEAPON_ICON[piece["weapon"]] if show_weapon and piece["alive"] else None,
         "role": piece["role"] if show_role and piece["alive"] else None,
@@ -237,6 +267,41 @@ def build_player_view(match_state: dict[str, Any]) -> dict[str, Any]:
     return response
 
 
+def piece_at(match_state: dict[str, Any], row: int, col: int) -> dict[str, Any] | None:
+    return next(
+        (
+            piece
+            for piece in match_state["pieces"]
+            if piece["alive"] and piece["row"] == row and piece["col"] == col
+        ),
+        None,
+    )
+
+
+def valid_move_targets(piece: dict[str, Any]) -> set[tuple[int, int]]:
+    row_delta = 1 if piece["owner"] == "player" else -1
+    candidates = {
+        position_key(piece["row"] + row_delta, piece["col"]),
+        position_key(piece["row"], piece["col"] - 1),
+        position_key(piece["row"], piece["col"] + 1),
+    }
+    return {
+        (row, col)
+        for row, col in candidates
+        if 1 <= row <= 6 and 1 <= col <= 5
+    }
+
+
+def adjacent_enemy_targets(match_state: dict[str, Any], piece: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        other
+        for other in match_state["pieces"]
+        if other["alive"]
+        and other["owner"] != piece["owner"]
+        and abs(other["row"] - piece["row"]) + abs(other["col"] - piece["col"]) == 1
+    ]
+
+
 def match_or_404(match_id: str) -> dict[str, Any]:
     match_state = MATCHES.get(match_id)
     if not match_state:
@@ -262,10 +327,10 @@ def apply_duel_outcome(
 ) -> None:
     duel: dict[str, Any] = {
         "attackerId": attacker["id"],
-        "attackerName": attacker["name"],
+        "attackerName": duel_piece_label(attacker),
         "attackerWeapon": attacker_weapon,
         "defenderId": defender["id"],
-        "defenderName": defender["name"],
+        "defenderName": duel_piece_label(defender),
         "defenderWeapon": defender_weapon,
         "winner": winner,
         "tie": False,
@@ -281,7 +346,7 @@ def apply_duel_outcome(
         if defender["role"] == "decoy":
             duel["decoyAbsorbed"] = True
             match_state["stats"]["decoy_absorbed"] += 1
-            match_state["message"] = f"{defender['name']} was the Decoy and absorbed the attack."
+            match_state["message"] = "The decoy absorbed the attack and stayed on the board."
         else:
             defender["alive"] = False
             duel["eliminatedId"] = defender["id"]
@@ -297,7 +362,7 @@ def apply_duel_outcome(
                     "Enemy flag captured." if attacker["owner"] == "player" else "Your flag was defeated.",
                 )
             else:
-                match_state["message"] = f"{attacker['name']} won the duel."
+                match_state["message"] = "Your attack succeeded." if attacker["owner"] == "player" else "Claude won the duel."
     else:
         attacker["alive"] = False
         duel["eliminatedId"] = attacker["id"]
@@ -313,7 +378,7 @@ def apply_duel_outcome(
                 "Your flag was defeated." if defender["owner"] == "ai" else "Enemy flag captured.",
             )
         else:
-            match_state["message"] = f"{defender['name']} defended successfully."
+            match_state["message"] = "Claude defended successfully." if defender["owner"] == "ai" else "Your defense succeeded."
 
     if match_state["phase"] != "finished":
         match_state["phase"] = "ai_turn" if initiated_by == "player" else "player_turn"
@@ -349,10 +414,10 @@ def resolve_attack(
         match_state["message"] = "Tie. Pick a new weapon to continue the duel."
         match_state["last_duel"] = {
             "attackerId": attacker["id"],
-            "attackerName": attacker["name"],
+            "attackerName": duel_piece_label(attacker),
             "attackerWeapon": attacker_weapon or attacker["weapon"],
             "defenderId": defender["id"],
-            "defenderName": defender["name"],
+            "defenderName": duel_piece_label(defender),
             "defenderWeapon": defender_weapon or defender["weapon"],
             "winner": "tie",
             "tie": True,
@@ -380,25 +445,49 @@ def alive_pieces(match_state: dict[str, Any], owner: Owner) -> list[dict[str, An
     ]
 
 
+def movable_pieces(match_state: dict[str, Any], owner: Owner) -> list[dict[str, Any]]:
+    pieces = alive_pieces(match_state, owner)
+    movable: list[dict[str, Any]] = []
+    for piece in pieces:
+        if any(
+            piece_at(match_state, row, col) is None
+            for row, col in valid_move_targets(piece)
+        ):
+            movable.append(piece)
+    return movable
+
+
 def choose_ai_move(match_state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], str]:
     ai_pieces = alive_pieces(match_state, "ai")
     player_pieces = alive_pieces(match_state, "player")
     difficulty = match_state["difficulty"]
     known = match_state["known_player_weapons"]
 
-    if difficulty in ("medium", "hard"):
-        for attacker in ai_pieces:
-            for defender in player_pieces:
-                weapon = known.get(defender["id"])
-                if weapon and duel_result(attacker, defender, attacker["weapon"], weapon) == "attacker":
-                    return attacker, defender, "AI used a remembered matchup."
+    for attacker in ai_pieces:
+        adjacent_targets = adjacent_enemy_targets(match_state, attacker)
+        for defender in adjacent_targets:
+            weapon = known.get(defender["id"], defender["weapon"])
+            if difficulty in ("medium", "hard") and weapon and duel_result(attacker, defender, attacker["weapon"], weapon) == "attacker":
+                return attacker, defender, "AI used a remembered adjacent matchup."
+        if adjacent_targets:
+            return attacker, adjacent_targets[0], "AI attacked an adjacent target."
+
+    movers = movable_pieces(match_state, "ai")
+    if movers:
+        mover = random.choice(movers)
+        target_row, target_col = next(
+            (row, col)
+            for row, col in valid_move_targets(mover)
+            if piece_at(match_state, row, col) is None
+        )
+        return mover, {"row": target_row, "col": target_col}, "AI advanced a piece."
 
     attacker = random.choice(ai_pieces)
     defender = random.choice(player_pieces)
     return attacker, defender, "AI used a fallback valid move."
 
 
-def choose_ai_move_with_claude(match_state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], str]:
+def choose_ai_move_with_claude(match_state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | dict[str, int], str]:
     ai_pieces = alive_pieces(match_state, "ai")
     player_pieces = alive_pieces(match_state, "player")
     visible_state = {
@@ -420,20 +509,43 @@ def choose_ai_move_with_claude(match_state: dict[str, Any]) -> tuple[dict[str, A
             }
             for piece in player_pieces
         ],
+        "adjacentTargets": {
+            piece["id"]: [target["id"] for target in adjacent_enemy_targets(match_state, piece)]
+            for piece in ai_pieces
+        },
+        "legalMoves": {
+            piece["id"]: [
+                {"row": row, "col": col}
+                for row, col in valid_move_targets(piece)
+                if piece_at(match_state, row, col) is None
+            ]
+            for piece in ai_pieces
+        },
         "lastDuel": match_state.get("last_duel"),
     }
     prompt = (
         "You are choosing the AI move for a hidden-information Squad RPS duel. "
-        "Return JSON only with attackerId, targetId, reasoning. Choose only from the provided alive ids. "
+        "Return JSON only with action, attackerId, optional targetId, optional row, optional col, reasoning. "
+        "Action must be attack or move. Choose only legal adjacent attacks or legal moves from the provided state. "
         f"Visible state: {json.dumps(visible_state)}"
     )
     text = call_claude_text(prompt, 180)
     parsed = json.loads(text)
+    action = parsed.get("action")
     attacker_id = parsed.get("attackerId")
-    target_id = parsed.get("targetId")
     reasoning = str(parsed.get("reasoning", "AI used Claude guidance.")).strip()[:160]
     attacker = next(piece for piece in ai_pieces if piece["id"] == attacker_id)
+    if action == "move":
+        row = int(parsed.get("row"))
+        col = int(parsed.get("col"))
+        if position_key(row, col) not in valid_move_targets(attacker) or piece_at(match_state, row, col) is not None:
+            raise ValueError("Illegal AI move.")
+        return attacker, {"row": row, "col": col}, reasoning or "AI moved with Claude guidance."
+
+    target_id = parsed.get("targetId")
     defender = next(piece for piece in player_pieces if piece["id"] == target_id)
+    if defender not in adjacent_enemy_targets(match_state, attacker):
+        raise ValueError("Illegal AI attack.")
     return attacker, defender, reasoning or "AI used Claude guidance."
 
 
@@ -463,6 +575,17 @@ def create_match_state(difficulty: str) -> dict[str, Any]:
         "pending_repick": None,
         "result": None,
     }
+
+
+def apply_move(match_state: dict[str, Any], piece: dict[str, Any], row: int, col: int, owner: Owner) -> None:
+    piece["row"] = row
+    piece["col"] = col
+    match_state["last_duel"] = None
+    match_state["message"] = (
+        "Move complete. Pick your next action." if owner == "player" else "Claude advanced a piece."
+    )
+    match_state["phase"] = "ai_turn" if owner == "player" else "player_turn"
+    match_state["current_turn"] = "ai" if owner == "player" else "player"
 
 
 @app.post("/api/squad/generate")
@@ -500,8 +623,30 @@ def player_attack(match_id: str, payload: PlayerAttackRequest) -> dict[str, Any]
         raise HTTPException(status_code=400, detail="Invalid duel target.")
     if attacker["owner"] != "player" or defender["owner"] != "ai":
         raise HTTPException(status_code=400, detail="Invalid attacker or target.")
+    if defender not in adjacent_enemy_targets(match_state, attacker):
+        raise HTTPException(status_code=400, detail="Target is not adjacent.")
 
     resolve_attack(match_state, attacker, defender, "player")
+    return build_player_view(match_state)
+
+
+@app.post("/api/match/{match_id}/turn/player-move")
+def player_move(match_id: str, payload: PlayerMoveRequest) -> dict[str, Any]:
+    match_state = match_or_404(match_id)
+    if match_state["phase"] != "player_turn":
+        raise HTTPException(status_code=400, detail="It is not the player's turn.")
+
+    piece = next((candidate for candidate in match_state["pieces"] if candidate["id"] == payload.piece_id), None)
+    if not piece or not piece["alive"] or piece["owner"] != "player":
+        raise HTTPException(status_code=400, detail="Invalid piece.")
+
+    destination = position_key(payload.row, payload.col)
+    if destination not in valid_move_targets(piece):
+        raise HTTPException(status_code=400, detail="Illegal move.")
+    if piece_at(match_state, payload.row, payload.col) is not None:
+        raise HTTPException(status_code=400, detail="Destination is occupied.")
+
+    apply_move(match_state, piece, payload.row, payload.col, "player")
     return build_player_view(match_state)
 
 
@@ -526,10 +671,14 @@ def ai_move(match_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="It is not the AI turn.")
     started = time.time()
     try:
-        attacker, defender, reasoning = choose_ai_move_with_claude(match_state)
+        attacker, action_target, reasoning = choose_ai_move_with_claude(match_state)
     except Exception:
-        attacker, defender, reasoning = choose_ai_move(match_state)
-    resolve_attack(match_state, attacker, defender, "ai")
+        attacker, action_target, reasoning = choose_ai_move(match_state)
+
+    if isinstance(action_target, dict) and "row" in action_target and "col" in action_target:
+        apply_move(match_state, attacker, int(action_target["row"]), int(action_target["col"]), "ai")
+    else:
+        resolve_attack(match_state, attacker, action_target, "ai")
     if time.time() - started > AI_TIMEOUT_SECONDS:
         match_state["message"] = "AI timed out and used a fallback move."
     match_state["aiReasoning"] = reasoning

@@ -2,6 +2,13 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useGame } from "../../modules/game/src/hooks/useGame";
 
+type TestWindow = Window & {
+  __SQUAD_RPS_TEST__?: {
+    finishReveal: () => Promise<void>;
+    getState: () => unknown;
+  };
+};
+
 function revealMatch() {
   return {
     matchId: "reveal-1",
@@ -17,7 +24,7 @@ function revealMatch() {
       tieSequences: 0,
       decoyAbsorbed: 0,
     },
-    revealEndsAt: Date.now() / 1000 - 1,
+    revealEndsAt: Date.now() / 1000 + 10,
     duel: null,
     result: null,
   };
@@ -28,7 +35,7 @@ describe("useGame", () => {
     vi.restoreAllMocks();
   });
 
-  it("automatically completes the reveal when the timer expires", async () => {
+  it("completes the reveal through the test helper", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce({
         ok: true,
@@ -47,6 +54,13 @@ describe("useGame", () => {
 
     await act(async () => {
       await result.current.startMatch();
+    });
+
+    expect(result.current.match?.phase).toBe("reveal");
+
+    const testWindow = window as TestWindow;
+    await act(async () => {
+      await testWindow.__SQUAD_RPS_TEST__?.finishReveal();
     });
 
     await waitFor(() => {

@@ -55,8 +55,10 @@ export function GameScreen() {
     boardCells,
     difficulties,
     error,
+    legalMoveTargets,
     loading,
     match,
+    onEmptyCellClick,
     onPieceClick,
     resetToSetup,
     revealSecondsLeft,
@@ -68,6 +70,7 @@ export function GameScreen() {
   } = useGame();
 
   const selectedAttacker = match?.board.find((piece) => piece.id === selectedAttackerId) ?? null;
+  const hasLegalMoveTargets = legalMoveTargets.size > 0;
 
   return (
     <main className="squad-shell">
@@ -142,18 +145,39 @@ export function GameScreen() {
                   {boardCells.map((cell) => (
                     <div key={`${cell.row}-${cell.col}`} className="board-slot">
                       <span className="board-slot__coords">{`R${cell.row} C${cell.col}`}</span>
-                      <PieceButton
-                        piece={cell.piece}
-                        selected={cell.piece?.id === selectedAttackerId}
-                        onClick={() => {
-                          if (cell.piece) {
-                            onPieceClick(cell.piece);
-                          }
-                        }}
-                      />
+                      {cell.piece ? (
+                        <PieceButton
+                          piece={cell.piece}
+                          selected={cell.piece.id === selectedAttackerId}
+                          onClick={() => {
+                            const piece = cell.piece;
+                            if (piece) {
+                              onPieceClick(piece);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className={`squad-cell squad-cell--empty squad-cell--emptyButton ${legalMoveTargets.has(`${cell.row}-${cell.col}`) ? "squad-cell--moveTarget" : ""}`}
+                          aria-label={`Empty cell row ${cell.row} col ${cell.col}`}
+                          disabled={!legalMoveTargets.has(`${cell.row}-${cell.col}`)}
+                          onClick={() => {
+                            onEmptyCellClick(cell.row, cell.col);
+                          }}
+                        >
+                          {legalMoveTargets.has(`${cell.row}-${cell.col}`) ? (
+                            <>
+                              <span className="squad-cell__moveLabel">Move Here</span>
+                              <span className="squad-cell__moveMeta">Advance into R{cell.row} C{cell.col}</span>
+                            </>
+                          ) : null}
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
+                {error ? <p className="status-error status-error--board">{error}</p> : null}
               </div>
 
               <div className="sidebar-stack">
@@ -161,15 +185,23 @@ export function GameScreen() {
                   <h2>Command Brief</h2>
                   {selectedAttacker ? (
                     <p>
-                      Selected attacker: <strong>{selectedAttacker.label}</strong>. Click an enemy silhouette to start
-                      the duel.
+                      Selected piece: <strong>{selectedAttacker.label}</strong>. Move to a highlighted empty square,
+                      or click an adjacent enemy silhouette to start a duel.
                     </p>
                   ) : (
-                    <p>Select one of your alive operatives, then choose an enemy target.</p>
+                    <p>Select one of your alive operatives. Front-row pieces can advance first.</p>
                   )}
+                  {selectedAttacker && !hasLegalMoveTargets ? (
+                    <p>
+                      This piece has no empty legal move right now. Back-row pieces start blocked until the front row
+                      opens a lane.
+                    </p>
+                  ) : null}
                   <ul className="brief-list">
                     <li>Reveal lasts 10 seconds.</li>
                     <li>The backend hides enemy weapons and roles after reveal.</li>
+                    <li>Move front, left, or right into an empty square.</li>
+                    <li>Duel only when your piece is adjacent to an enemy.</li>
                     <li>Flag death ends the match instantly.</li>
                     <li>Decoys never die when they are attacked.</li>
                   </ul>
@@ -233,7 +265,6 @@ export function GameScreen() {
                 ) : null}
               </div>
             </section>
-            {error ? <p className="status-error">{error}</p> : null}
           </>
         )}
       </div>

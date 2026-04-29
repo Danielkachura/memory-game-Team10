@@ -44,6 +44,10 @@ class PythonApiTests(unittest.TestCase):
 
         player_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "player")
         ai_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "ai")
+        player_piece["row"] = 4
+        player_piece["col"] = 1
+        ai_piece["row"] = 5
+        ai_piece["col"] = 1
         player_piece["weapon"] = "rock"
         ai_piece["weapon"] = "scissors"
 
@@ -55,6 +59,25 @@ class PythonApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["duel"]["winner"], "attacker")
+
+    def test_player_move_advances_piece(self) -> None:
+        create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()
+        match_id = create_payload["matchId"]
+        self.client.post(f"/api/match/{match_id}/reveal/complete", json={"confirmed": True})
+        match_state = battle_app.MATCHES[match_id]
+        player_piece = next(
+            piece for piece in match_state["pieces"] if piece["owner"] == "player" and piece["row"] == 2
+        )
+
+        response = self.client.post(
+            f"/api/match/{match_id}/turn/player-move",
+            json={"pieceId": player_piece["id"], "row": 3, "col": 1},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        moved_piece = next(piece for piece in payload["board"] if piece["id"] == player_piece["id"])
+        self.assertEqual((moved_piece["row"], moved_piece["col"]), (3, 1))
 
 
 if __name__ == "__main__":

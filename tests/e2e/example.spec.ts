@@ -5,7 +5,7 @@ const matchView = {
   phase: "player_turn",
   currentTurn: "player",
   difficulty: "medium",
-  message: "Your turn. Pick an attacker and an enemy target.",
+  message: "Your turn. Move front, left, or right until you can duel an adjacent enemy.",
   board: [
     {
       id: "player-1",
@@ -13,7 +13,7 @@ const matchView = {
       row: 1,
       col: 1,
       alive: true,
-      label: "Captain Quartz",
+      label: "Rock flag",
       weapon: "rock",
       weaponIcon: "🪨",
       role: "flag",
@@ -64,7 +64,7 @@ test.describe("Squad RPS MVP", () => {
     await page.getByRole("button", { name: "Start Match" }).click();
 
     await expect(page.getByTestId("battle-board")).toBeVisible();
-    await expect(page.getByLabel("Captain Quartz 🪨")).toBeVisible();
+    await expect(page.getByLabel("Rock flag 🪨")).toBeVisible();
     await expect(page.getByLabel(/Enemy silhouette/i)).toBeVisible();
   });
 });

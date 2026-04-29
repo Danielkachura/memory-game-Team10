@@ -86,6 +86,7 @@ export function useGame() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [revealSecondsLeft, setRevealSecondsLeft] = useState(0);
+  const [revealArmed, setRevealArmed] = useState(false);
   const aiInFlightRef = useRef(false);
   const matchRef = useRef<MatchView | null>(null);
 
@@ -117,11 +118,15 @@ export function useGame() {
   useEffect(() => {
     if (!match || match.phase !== "reveal") {
       setRevealSecondsLeft(0);
+      setRevealArmed(false);
       return undefined;
     }
     const tick = () => {
       const remaining = Math.max(0, Math.ceil(match.revealEndsAt - Date.now() / 1000));
       setRevealSecondsLeft(remaining);
+      if (remaining > 0) {
+        setRevealArmed(true);
+      }
     };
     tick();
     const interval = window.setInterval(tick, 250);
@@ -129,11 +134,11 @@ export function useGame() {
   }, [match]);
 
   useEffect(() => {
-    if (!match || match.phase !== "reveal" || revealSecondsLeft > 0) {
+    if (!match || match.phase !== "reveal" || revealSecondsLeft > 0 || !revealArmed) {
       return;
     }
     void completeReveal();
-  }, [match, revealSecondsLeft]);
+  }, [match, revealSecondsLeft, revealArmed]);
 
   useEffect(() => {
     if (!match || match.phase !== "ai_turn" || aiInFlightRef.current) {
@@ -166,6 +171,55 @@ export function useGame() {
     }
     return cells;
   }, [match]);
+
+  const legalMoveTargets = useMemo(() => {
+    if (!match || match.phase !== "player_turn" || !selectedAttackerId) {
+      return new Set<string>();
+    }
+
+    const selectedPiece = match.board.find((piece) => piece.id === selectedAttackerId);
+    if (!selectedPiece || selectedPiece.owner !== "player" || !selectedPiece.alive) {
+      return new Set<string>();
+    }
+
+    const occupied = new Set(
+      match.board.filter((piece) => piece.alive).map((piece) => `${piece.row}-${piece.col}`),
+    );
+    const candidates = [
+      [selectedPiece.row + 1, selectedPiece.col],
+      [selectedPiece.row, selectedPiece.col - 1],
+      [selectedPiece.row, selectedPiece.col + 1],
+    ];
+
+    return new Set(
+      candidates
+        .filter(([row, col]) => row >= 1 && row <= 6 && col >= 1 && col <= 5)
+        .filter(([row, col]) => !occupied.has(`${row}-${col}`))
+        .map(([row, col]) => `${row}-${col}`),
+    );
+  }, [match, selectedAttackerId]);
+
+  const legalAttackTargets = useMemo(() => {
+    if (!match || match.phase !== "player_turn" || !selectedAttackerId) {
+      return new Set<string>();
+    }
+
+    const selectedPiece = match.board.find((piece) => piece.id === selectedAttackerId);
+    if (!selectedPiece || selectedPiece.owner !== "player" || !selectedPiece.alive) {
+      return new Set<string>();
+    }
+
+    return new Set(
+      match.board
+        .filter(
+          (piece) =>
+            piece.alive &&
+            piece.owner === "ai" &&
+            Math.abs(piece.row - selectedPiece.row) + Math.abs(piece.col - selectedPiece.col) === 1,
+        )
+        .map((piece) => piece.id),
+    );
+  }, [match, selectedAttackerId]);
 
   async function startMatch() {
     setLoading(true);
@@ -215,6 +269,29 @@ export function useGame() {
     }
   }
 
+  async function movePiece(row: number, col: number) {
+    const current = matchRef.current;
+    if (!current || current.phase !== "player_turn" || !selectedAttackerId) {
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await postJson<MatchView>(`/api/match/${current.matchId}/turn/player-move`, {
+        pieceId: selectedAttackerId,
+        attackerId: selectedAttackerId,
+        row,
+        col,
+      });
+      setMatch(next);
+      setSelectedAttackerId(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Move failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function submitRepick(weapon: Weapon) {
     const current = matchRef.current;
     if (!current || current.phase !== "repick") {
@@ -241,11 +318,27 @@ export function useGame() {
     }
     if (piece.owner === "player") {
       setSelectedAttackerId(piece.id);
+      setError(null);
       return;
     }
     if (piece.owner === "ai" && selectedAttackerId) {
+      if (!legalAttackTargets.has(piece.id)) {
+        setError("You can only duel an adjacent enemy.");
+        return;
+      }
       void attack(piece.id);
     }
+  }
+
+  function onEmptyCellClick(row: number, col: number) {
+    if (!selectedAttackerId || match?.phase !== "player_turn") {
+      return;
+    }
+    if (!legalMoveTargets.has(`${row}-${col}`)) {
+      setError("You can only move to a highlighted adjacent empty square.");
+      return;
+    }
+    void movePiece(row, col);
   }
 
   function resetToSetup() {
@@ -261,6 +354,9 @@ export function useGame() {
     error,
     loading,
     match,
+    legalMoveTargets,
+    legalAttackTargets,
+    onEmptyCellClick,
     onPieceClick,
     resetToSetup,
     revealSecondsLeft,

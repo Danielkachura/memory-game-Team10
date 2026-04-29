@@ -265,6 +265,7 @@ textarea {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--color-text-muted);
+  pointer-events: none;
 }
 
 .squad-cell {
@@ -302,9 +303,37 @@ textarea {
   background: rgba(6, 11, 18, 0.3);
 }
 
+.squad-cell--emptyButton {
+  cursor: pointer;
+}
+
+.squad-cell--moveTarget {
+  border: 1px solid rgba(125, 211, 252, 0.65);
+  background:
+    radial-gradient(circle at center, rgba(125, 211, 252, 0.18), rgba(6, 11, 18, 0.35)),
+    rgba(6, 11, 18, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.16);
+}
+
+.squad-cell--emptyButton:disabled {
+  cursor: default;
+}
+
 .squad-cell:disabled {
   cursor: default;
   opacity: 0.7;
+}
+
+.squad-cell__moveLabel {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.squad-cell__moveMeta {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
 }
 
 .squad-cell__name {
@@ -316,7 +345,7 @@ textarea {
   display: flex;
   gap: 8px;
   align-items: center;
-  font-size: 1.15rem;
+  font-size: 1.35rem;
 }
 
 .sidebar-stack {
@@ -351,6 +380,10 @@ textarea {
 .status-error {
   margin-top: 16px;
   color: var(--color-danger);
+}
+
+.status-error--board {
+  margin-bottom: 0;
 }
 
 @media (max-width: 980px) {
