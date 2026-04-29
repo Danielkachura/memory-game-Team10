@@ -55,6 +55,7 @@ export function GameScreen() {
     boardCells,
     difficulties,
     error,
+    legalMoveTargets,
     loading,
     match,
     onEmptyCellClick,
@@ -69,6 +70,7 @@ export function GameScreen() {
   } = useGame();
 
   const selectedAttacker = match?.board.find((piece) => piece.id === selectedAttackerId) ?? null;
+  const hasLegalMoveTargets = legalMoveTargets.size > 0;
 
   return (
     <main className="squad-shell">
@@ -157,7 +159,7 @@ export function GameScreen() {
                       ) : (
                         <button
                           type="button"
-                          className="squad-cell squad-cell--empty squad-cell--emptyButton"
+                          className={`squad-cell squad-cell--empty squad-cell--emptyButton ${legalMoveTargets.has(`${cell.row}-${cell.col}`) ? "squad-cell--moveTarget" : ""}`}
                           aria-label={`Empty cell row ${cell.row} col ${cell.col}`}
                           onClick={() => {
                             onEmptyCellClick(cell.row, cell.col);
@@ -174,12 +176,18 @@ export function GameScreen() {
                   <h2>Command Brief</h2>
                   {selectedAttacker ? (
                     <p>
-                      Selected attacker: <strong>{selectedAttacker.label}</strong>. Click an enemy silhouette to start
-                      the duel.
+                      Selected piece: <strong>{selectedAttacker.label}</strong>. Move to a highlighted empty square,
+                      or click an adjacent enemy silhouette to start a duel.
                     </p>
                   ) : (
-                    <p>Select one of your alive operatives, then choose an enemy target.</p>
+                    <p>Select one of your alive operatives. Front-row pieces can advance first.</p>
                   )}
+                  {selectedAttacker && !hasLegalMoveTargets ? (
+                    <p>
+                      This piece has no empty legal move right now. Back-row pieces start blocked until the front row
+                      opens a lane.
+                    </p>
+                  ) : null}
                   <ul className="brief-list">
                     <li>Reveal lasts 10 seconds.</li>
                     <li>The backend hides enemy weapons and roles after reveal.</li>

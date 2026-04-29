@@ -172,6 +172,33 @@ export function useGame() {
     return cells;
   }, [match]);
 
+  const legalMoveTargets = useMemo(() => {
+    if (!match || match.phase !== "player_turn" || !selectedAttackerId) {
+      return new Set<string>();
+    }
+
+    const selectedPiece = match.board.find((piece) => piece.id === selectedAttackerId);
+    if (!selectedPiece || selectedPiece.owner !== "player" || !selectedPiece.alive) {
+      return new Set<string>();
+    }
+
+    const occupied = new Set(
+      match.board.filter((piece) => piece.alive).map((piece) => `${piece.row}-${piece.col}`),
+    );
+    const candidates = [
+      [selectedPiece.row + 1, selectedPiece.col],
+      [selectedPiece.row, selectedPiece.col - 1],
+      [selectedPiece.row, selectedPiece.col + 1],
+    ];
+
+    return new Set(
+      candidates
+        .filter(([row, col]) => row >= 1 && row <= 6 && col >= 1 && col <= 5)
+        .filter(([row, col]) => !occupied.has(`${row}-${col}`))
+        .map(([row, col]) => `${row}-${col}`),
+    );
+  }, [match, selectedAttackerId]);
+
   async function startMatch() {
     setLoading(true);
     setError(null);
@@ -295,6 +322,7 @@ export function useGame() {
     error,
     loading,
     match,
+    legalMoveTargets,
     onEmptyCellClick,
     onPieceClick,
     resetToSetup,
