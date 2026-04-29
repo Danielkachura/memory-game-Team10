@@ -1,13 +1,10 @@
-# Backend — Domain Rules
+# Backend - Domain Rules
 
-> Tier-2 agent rules for the backend domain.
-> These extend the root `AGENTS.md` with backend-specific guidance.
-
----
+These rules apply to everything under `backend/`.
 
 ## Scope
 
-Everything under `backend/` — API endpoints, business logic, data models, services.
+Backend code in this project exists to support the Memory Game's secure Claude integration layer.
 
 ## Owner Tag
 
@@ -15,31 +12,30 @@ Everything under `backend/` — API endpoints, business logic, data models, serv
 
 ## Conventions
 
-1. **Module structure** — each feature lives in its own module under `backend/modules/`
-2. **Public API** — export only what's needed via the module's `__init__.py` or `index.ts`
-3. **No cross-module imports** — modules talk to each other through shared interfaces, not direct imports
-4. **Tests live with the module** — unit tests in `modules/<name>/tests/unit/`, integration in `tests/integration/`
+1. Each backend feature lives in its own module under `backend/modules/`.
+2. Route handlers stay thin and delegate logic to services and validators.
+3. Input must be validated before any upstream Claude call.
+4. No browser-exposed secrets, ever.
+5. Tests live with the module in `tests/unit/` and `tests/integration/`.
 
-## Module Template
+## Active Module Layout
 
-Copy `modules/_example/` to start a new module:
-
-```
-modules/my-feature/
-├── README.md          # What this module does, its API, dependencies
-├── src/
-│   ├── models.*       # Data models / schemas
-│   ├── services.*     # Business logic
-│   └── api.*          # API endpoints / routes
-└── tests/
-    ├── unit/          # Fast, isolated tests
-    └── integration/   # Tests with external dependencies
+```text
+modules/<name>/
+  README.md
+  src/
+    api/
+    services/
+    validators/
+  tests/
+    unit/
+    integration/
 ```
 
 ## Rules
 
-- Every module MUST have a `README.md` explaining what it does
-- Every service function MUST have at least one unit test
-- API endpoints MUST validate input
-- No hardcoded secrets — use environment variables
-- No direct database queries in route handlers — use service layer
+- Every backend module must have a `README.md`.
+- Every service function must have at least one unit test.
+- API endpoints must validate input.
+- No hardcoded secrets; use environment variables.
+- No direct database logic in route handlers.

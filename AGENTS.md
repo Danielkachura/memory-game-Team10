@@ -42,6 +42,20 @@ When acting as CTO, structure your responses with:
 - Tests needed
 - Next steps
 
+**Direct reports under CTO:**
+- **[Architect]** — owns module boundaries, interfaces, and data flow
+- **[Tech Lead:frontend]** — owns React UI architecture, state shape, accessibility, and design-system compliance
+- **[Tech Lead:backend]** — owns the Claude proxy, server contracts, validation, and secret handling
+- **[QA Lead]** — owns test strategy, release criteria, regression coverage, and bug triage
+- **[Security Reviewer]** — reviews API key handling, input validation, and deployment exposure risks
+
+**How CTO uses them:**
+- Architect proposes structure and dependencies
+- Tech leads convert architecture into implementation-ready tasks
+- QA Lead defines what must be tested before sign-off
+- Security Reviewer blocks unsafe handling of `ANTHROPIC_API_KEY` or browser-exposed secrets
+- Final technical authority still sits with `[CTO]`
+
 ---
 
 ### [DEV] — Developer
@@ -70,6 +84,11 @@ When acting as DEV, structure your responses with:
 - Files changed
 - Tests added
 - How to verify it works
+
+**Specializations under DEV:**
+- `[DEV:frontend]` — React components, hooks, styling, accessibility, UI tests
+- `[DEV:backend]` — proxy/serverless route, API client wrappers, validation, backend tests
+- `[DEV:shared]` — shared types, utilities, constants, cross-module contracts
 
 ---
 
@@ -128,12 +147,20 @@ FOUNDER (Human)
     ▼
   [CTO]  ←→  Plans architecture, reviews code
     │
+    ├── Directs [Architect]
+    ├── Directs [Tech Lead:frontend]
+    ├── Directs [Tech Lead:backend]
+    ├── Directs [QA Lead]
+    ├── Requests review from [Security Reviewer]
     ├── Creates tasks for DEV
     ├── Defines quality gates for QA
     │
     ▼
   [DEV]  ←→  Implements features
     │
+    ├── [DEV:shared] defines contracts and utilities
+    ├── [DEV:frontend] builds game UI and state flows
+    ├── [DEV:backend] builds Claude proxy and service integration
     ├── Writes code + tests
     ├── Submits for review
     │

@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "allowSyntheticDefaultImports": true
+  },
+  "include": [
+    "vite.config.ts",
+    "playwright.config.ts",
+    "postcss.config.js",
+    "tailwind.config.ts",
+    "../../backend/modules/claude_proxy/src/**/*.ts"
+  ]
+}

@@ -34,13 +34,12 @@ out/
 .nuxt/
 .output/
 .svelte-kit/
+.vite/
 *.js.map
-*.d.ts
 
 # ============================================
 # Package managers
 # ============================================
-package-lock.json
 yarn.lock
 pnpm-lock.yaml
 bun.lockb
@@ -59,7 +58,6 @@ test-results/
 playwright-report/
 blob-report/
 tests/screenshots/*.png
-!tests/screenshots/.gitkeep
 
 # ============================================
 # IDE / Editor

@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: #09111f;
+  --color-bg-accent: #12233f;
+  --color-surface: #132033;
+  --color-surface-raised: #1d2d45;
+  --color-primary: #4ecdc4;
+  --color-primary-strong: #14b8a6;
+  --color-secondary: #ffd166;
+  --color-success: #7bd389;
+  --color-warning: #ffb703;
+  --color-danger: #ef476f;
+  --color-text: #f8fbff;
+  --color-text-muted: #a7b7cc;
+  --color-card-back: #4ecdc4;
+  --color-card-face: #17304d;
+  --font-heading: "Space Grotesk", "Trebuchet MS", sans-serif;
+  --font-body: "Manrope", "Segoe UI", sans-serif;
+  --font-emoji: "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, monospace;
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  color-scheme: dark;
+  font-family: var(--font-body);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background:
+    radial-gradient(circle at top, rgba(78, 205, 196, 0.15), transparent 30%),
+    linear-gradient(180deg, var(--color-bg-accent), var(--color-bg));
+  color: var(--color-text);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}

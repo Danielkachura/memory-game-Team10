@@ -1,30 +1,42 @@
-# Sprint 01 — Report
+# Sprint 01 - Report
+# Memory Game - Team 10
 
 | Field | Value |
-|-------|-------|
-| **Sprint** | 01 |
-| **Status** | {{Complete / Partial / Incomplete}} |
-| **Tasks completed** | X / Y |
+|---|---|
+| Sprint | 01 |
+| Status | Planned |
+| Tasks completed | 0 / 19 |
+| QA sign-off | Pending |
 
 ---
 
+## Goal
+
+Deliver a demo-ready memory game MVP with secure Claude integration and working automated tests.
+
 ## What was delivered
 
-- _..._
-- _..._
+Planning and operating artifacts:
+- PRD-aligned architecture
+- CTO role hierarchy and ownership model
+- sprint plan and task breakdown
+- updated design-system guidance
+- decision log for key technical choices
 
-## What wasn't delivered (and why)
+## What is still to be delivered
 
-- _..._
+Implementation artifacts still required:
+- Vite app scaffold and package manifest
+- actual frontend gameplay modules
+- backend Claude proxy module
+- real unit, integration, and E2E tests
 
-## Bugs found
+## Risks Being Tracked
 
-- _..._
+- schedule pressure if scaffold work is delayed
+- AI service instability during demo conditions
+- drift between documentation and implementation
 
-## Key decisions made
+## QA Notes
 
-- _..._
-
-## Lessons learned
-
-- _..._
+No implementation code has been verified yet. This report should be updated once build work starts.
