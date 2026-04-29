@@ -38,7 +38,7 @@ The game must remain playable when Claude features fail.
 | Unit and integration tests | Vitest + Testing Library | Fast local feedback and Vite-native setup |
 | E2E | Playwright | Browser flow coverage and screenshots |
 | AI | Anthropic Claude API | Hackathon requirement and feature differentiator |
-| Proxy | Vite dev proxy in development, serverless endpoint in production | Keeps secrets server-side with minimal overhead |
+| Proxy | Python FastAPI backend with Vite forwarding `/api` in development | Keeps secrets server-side with minimal overhead |
 
 ---
 
@@ -113,12 +113,12 @@ frontend/
 ## 6. Backend Module Plan
 
 ```text
-backend/modules/
-  claude_proxy/
-    src/
-      api/
-      services/
-      validators/
+backend/python_api/
+  app.py
+  config.py
+  schemas.py
+  service.py
+  tests/
 ```
 
 Responsibilities:
@@ -237,5 +237,5 @@ Critical checks:
 ## 11. Open Architectural Tasks
 
 - create frontend `shared`, `game`, `ai`, and `ui` modules
-- implement backend `claude_proxy` module
+- implement and extend the Python backend in `backend/python_api/`
 - expand the `frontend/app` workspace from scaffold into the full playable game

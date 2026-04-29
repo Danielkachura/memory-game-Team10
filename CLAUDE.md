@@ -1,6 +1,6 @@
 # Memory Game - Team 10 | Claude Code Project Context
 
-> **Stack:** React + TypeScript + Vite + Tailwind CSS + Anthropic Claude API
+> **Stack:** React + TypeScript + Vite + Tailwind CSS + Python FastAPI + Anthropic Claude API
 > **Purpose:** A browser-based memory card-matching game with AI-powered themes, hints, and end-game narration.
 >
 > This file is auto-loaded by Claude Code CLI when you open this project directory.
@@ -44,12 +44,16 @@ Runs primarily in the browser and integrates the Anthropic Claude API for intell
 ## 3. Key Commands
 
 ```bash
-# Development
+# Frontend development
 npm --prefix frontend/app run dev      # Start Vite dev server on port 5173
 npm --prefix frontend/app run build    # Production build
 npm --prefix frontend/app run preview  # Preview production build locally
 npm --prefix frontend/app run test     # Run Vitest unit tests
 npm --prefix frontend/app run lint     # TypeScript check
+
+# Backend development
+python -m uvicorn backend.python_api.app:app --host 127.0.0.1 --port 8000 --reload
+python -m unittest backend.python_api.tests.test_app
 
 # E2E Testing (Playwright)
 npm run e2e          # Run all Playwright E2E tests
@@ -106,8 +110,7 @@ memory-game-Team10/
 
   backend/
     AGENTS.md
-    modules/
-      claude_proxy/
+    python_api/
 
   tests/
     e2e/
@@ -259,7 +262,7 @@ Tone: triumphant if 3 stars, encouraging if 2 stars, playful if 1 star.
 | `[CTO]` | Architecture, tech decisions, code review |
 | `[Architect]` | Module boundaries, contracts, and dependency control |
 | `[Tech Lead:frontend]` | Frontend architecture, state flows, accessibility |
-| `[Tech Lead:backend]` | Claude proxy contracts, validation, secret handling |
+| `[Tech Lead:backend]` | Python API contracts, validation, secret handling |
 | `[DEV]` | Implementation, features, bug fixes |
 | `[DEV:shared]` | Shared types, constants, utilities, and toolchain wiring |
 | `[DEV:frontend]` | Frontend module implementation |

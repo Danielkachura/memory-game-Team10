@@ -1,29 +1,35 @@
-import { describe, expect, it, vi } from "vitest";
-import { handleClaudeProxy } from "../../../backend/modules/claude_proxy/src/api/handleClaudeProxy";
-import { validateClaudeProxyRequest } from "../../../backend/modules/claude_proxy/src/validators/request";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { callClaude } from "@ai/services/claudeClient";
 
-describe("backend Claude proxy", () => {
-  it("validates accepted proxy requests", () => {
-    expect(validateClaudeProxyRequest({ feature: "hint", prompt: "test" })).toEqual({
-      feature: "hint",
-      prompt: "test",
-    });
-    expect(() => validateClaudeProxyRequest({ feature: "bad", prompt: "x" })).toThrow();
-    expect(() => validateClaudeProxyRequest({ feature: "hint", prompt: "" })).toThrow();
+describe("Claude client", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
-  it("normalizes a successful Anthropic response", async () => {
-    vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
+  it("posts feature and prompt to the backend API", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
-      json: async () => ({ content: [{ type: "text", text: "Proxy success" }] }),
+      json: async () => ({ text: "Proxy success" }),
     } as Response);
 
-    await expect(handleClaudeProxy({ feature: "hint", prompt: "go" })).resolves.toEqual({
-      text: "Proxy success",
-    });
+    await expect(callClaude("hint", "go")).resolves.toBe("Proxy success");
 
-    vi.restoreAllMocks();
-    vi.unstubAllEnvs();
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "/api/claude",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ feature: "hint", prompt: "go" }),
+      }),
+    );
+  });
+
+  it("throws on empty backend text responses", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    } as Response);
+
+    await expect(callClaude("hint", "go")).rejects.toThrow("Claude proxy returned empty text.");
   });
 });

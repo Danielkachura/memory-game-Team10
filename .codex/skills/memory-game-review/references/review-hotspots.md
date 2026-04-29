@@ -6,9 +6,9 @@
 - `frontend/modules/shared/src/constants/gameConfig.ts`
 - `frontend/modules/shared/src/utils/scoreCalculator.ts`
 - `frontend/modules/ai/src/services/claudeClient.ts`
-- `backend/modules/claude_proxy/src/api/handleClaudeProxy.ts`
-- `backend/modules/claude_proxy/src/services/anthropicService.ts`
-- `backend/modules/claude_proxy/src/validators/request.ts`
+- `backend/python_api/app.py`
+- `backend/python_api/service.py`
+- `backend/python_api/schemas.py`
 - `tests/e2e/example.spec.ts`
 
 ## What to Look For
@@ -18,4 +18,3 @@
 - missing fallback text on Claude errors
 - timer or move counts drifting from real play
 - tests that only cover the happy path for risky logic
-

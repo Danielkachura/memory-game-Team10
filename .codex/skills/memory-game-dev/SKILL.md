@@ -16,7 +16,7 @@ Use this skill to work inside this repository with the project's actual workflow
    - `frontend/modules/shared` for canonical types, constants, and reusable rules
    - `frontend/modules/game` for gameplay components, hooks, and utilities
    - `frontend/modules/ai` for prompt builders and frontend AI service wrappers
-   - `backend/modules/claude_proxy` for server-side Claude calls and validation
+   - `backend/python_api` for server-side Claude calls and validation
 2. Read the relevant reference file from `references/` before changing code.
 3. Implement the smallest coherent change.
 4. Run only the verification commands needed for the touched area.
@@ -52,4 +52,3 @@ Use `npx playwright test` after meaningful UI flow changes.
 - `references/project-map.md` for repo layout, ownership, and common tasks
 - `references/game-rules.md` for canonical gameplay and scoring rules
 - `references/qa-checklist.md` for required verification and regression focus
-

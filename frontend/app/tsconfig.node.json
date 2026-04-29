@@ -10,7 +10,6 @@
     "vite.config.ts",
     "playwright.config.ts",
     "postcss.config.js",
-    "tailwind.config.ts",
-    "../../backend/modules/claude_proxy/src/**/*.ts"
+    "tailwind.config.ts"
   ]
 }

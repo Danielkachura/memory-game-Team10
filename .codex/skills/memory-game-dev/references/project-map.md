@@ -14,7 +14,7 @@
 - `frontend/modules/shared/`: canonical game types, constants, score calculation
 - `frontend/modules/game/`: gameplay hook, board, setup, hint panel, win screen
 - `frontend/modules/ai/`: prompt builders and browser-to-proxy AI services
-- `backend/modules/claude_proxy/`: validators, Claude service, proxy API handler
+- `backend/python_api/`: FastAPI app, request schemas, Anthropic service, backend tests
 - `tests/e2e/`: Playwright coverage
 - `docs/`: PRD, architecture, decisions, sprint artifacts, UI kit
 
@@ -22,7 +22,7 @@
 
 - Keep business rules in shared or game modules, not in presentational components.
 - Frontend work usually touches both `frontend/app/src/` and one or more module packages.
-- Backend proxy changes should include input validation and fallback-aware behavior.
+- Backend changes should include input validation and fallback-aware behavior.
 - E2E flows assume the dev server runs on port `5173`.
 
 ## Common Task Routing
@@ -51,7 +51,7 @@ Verify:
 
 Read:
 - `frontend/modules/ai/src/`
-- `backend/modules/claude_proxy/src/`
+- `backend/python_api/`
 - `docs/ARCHITECTURE.md`
 
 Verify:
@@ -68,4 +68,3 @@ Read:
 Verify:
 - `npm --prefix frontend/app run test`
 - `npx playwright test`
-

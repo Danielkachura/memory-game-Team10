@@ -1,6 +1,6 @@
 # Memory Game - Team 10
 
-Browser-based memory card game built for a hackathon with Claude-powered theme generation, hints, and end-game narration.
+Browser-based memory card game built for a hackathon with a React frontend and Python backend for Claude-powered theme generation, hints, and end-game narration.
 
 ## Product Summary
 - Core loop: flip cards, match pairs, finish the board
@@ -28,11 +28,13 @@ The repository now contains a dedicated frontend workspace in `frontend/app/` pl
 - `[Security Reviewer]` checks trust boundaries and key exposure
 - `[DEV:shared]`, `[DEV:frontend]`, `[DEV:backend]` implement the system
 
-## Planned Stack
+## Stack
 - React
 - TypeScript
 - Vite
 - Tailwind CSS
+- Python
+- FastAPI
 - Vitest
 - Playwright
 - Anthropic Claude API through a server-side proxy
@@ -56,6 +58,13 @@ npm --prefix frontend/app run preview
 npm --prefix frontend/app run test
 npm --prefix frontend/app run lint
 npx playwright test
+```
+
+Run the Python backend from the project root with:
+
+```bash
+python -m uvicorn backend.python_api.app:app --host 127.0.0.1 --port 8000 --reload
+python -m unittest backend.python_api.tests.test_app
 ```
 
 ## Definition of Done
