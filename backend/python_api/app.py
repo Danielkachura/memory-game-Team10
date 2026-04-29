@@ -5,12 +5,14 @@ import random
 import time
 import uuid
 from copy import deepcopy
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 
 from .config import AI_TIMEOUT_SECONDS, REVEAL_SECONDS
 from .schemas import (
+    LobbyCreateRequest,
+    LobbyJoinRequest,
     MatchCreateRequest,
     PlayerAttackRequest,
     PlayerMoveRequest,
@@ -26,11 +28,16 @@ app = FastAPI(title="Squad RPS Python API")
 Owner = Literal["player", "ai"]
 Role = Literal["soldier", "flag", "decoy"]
 Phase = Literal["setup", "reveal", "player_turn", "ai_turn", "repick", "finished"]
+Mode = Literal["ai", "pvp"]
 
 WEAPONS: list[Weapon] = ["rock", "paper", "scissors"]
 WEAPON_ICON = {"rock": "🪨", "paper": "📄", "scissors": "✂️"}
 ROLE_ICON = {"flag": "🚩", "decoy": "🎭", "soldier": "•"}
 MATCHES: dict[str, dict[str, Any]] = {}
+# Token registry for PVP. Maps a session token to {match_id, owner, display_name}.
+TOKENS: dict[str, dict[str, Any]] = {}
+# Lobby registry. lobby_id -> {id, host_name, host_token, guest_name, guest_token, match_id, status, difficulty, created_at}
+LOBBIES: dict[str, dict[str, Any]] = {}
 
 PLAYER_NAMES = [
     "Captain Quartz",
@@ -108,6 +115,21 @@ def public_piece_label(piece: dict[str, Any], viewer: Owner, phase: Phase, finis
 def duel_piece_label(piece: dict[str, Any]) -> str:
     role_suffix = f" {piece['role']}" if piece["role"] in ("flag", "decoy") else ""
     return f"{weapon_title(piece['weapon'])}{role_suffix}".strip()
+
+
+def debug_piece_name(piece: dict[str, Any]) -> str:
+    role_suffix = f" ({piece['role']})" if piece["role"] in ("flag", "decoy") else ""
+    return f"{piece['owner']}:{weapon_title(piece['weapon'])}{role_suffix}#{piece['id'][-4:]}"
+
+
+def append_log(match_state: dict[str, Any], message: str) -> None:
+    log = match_state.setdefault("event_log", [])
+    log.append({
+        "turn": len(log) + 1,
+        "message": message,
+    })
+    if len(log) > 60:
+        del log[:-60]
 
 
 def build_piece(owner: Owner, name: str, weapon: Weapon, row: int, col: int) -> dict[str, Any]:
@@ -240,16 +262,18 @@ def visible_piece(piece: dict[str, Any], viewer: Owner, phase: Phase, finished: 
     }
 
 
-def build_player_view(match_state: dict[str, Any]) -> dict[str, Any]:
+def build_player_view(match_state: dict[str, Any], viewer: Owner = "player") -> dict[str, Any]:
     finished = match_state["phase"] == "finished"
     board = [
-        visible_piece(piece, "player", match_state["phase"], finished)
+        visible_piece(piece, viewer, match_state["phase"], finished)
         for piece in match_state["pieces"]
     ]
 
     response: dict[str, Any] = {
         "matchId": match_state["id"],
         "phase": match_state["phase"],
+        "mode": match_state.get("mode", "ai"),
+        "viewer": viewer,
         "currentTurn": match_state["current_turn"],
         "difficulty": match_state["difficulty"],
         "message": match_state["message"],
@@ -258,13 +282,40 @@ def build_player_view(match_state: dict[str, Any]) -> dict[str, Any]:
         "revealEndsAt": match_state["reveal_ends_at"],
         "duel": match_state.get("last_duel"),
         "result": match_state.get("result"),
+        "players": match_state.get("players"),
+        "eventLog": match_state.get("event_log", []),
     }
     if match_state["phase"] == "repick":
+        pending = match_state["pending_repick"]
         response["repick"] = {
-            "attackerId": match_state["pending_repick"]["attacker_id"],
-            "targetId": match_state["pending_repick"]["target_id"],
+            "attackerId": pending["attacker_id"],
+            "targetId": pending["target_id"],
+            "picksReceived": list((pending.get("picks") or {}).keys()),
         }
     return response
+
+
+def viewer_for(match_state: dict[str, Any], token: Optional[str]) -> Owner:
+    """Resolve the viewing perspective for a request. Solo-vs-AI always shows the human player.
+    PVP requires a valid token bound to this match; the token's owner field is the viewer."""
+    if match_state.get("mode", "ai") != "pvp":
+        return "player"
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing player token.")
+    info = TOKENS.get(token)
+    if not info or info["match_id"] != match_state["id"]:
+        raise HTTPException(status_code=401, detail="Invalid player token.")
+    return info["owner"]
+
+
+def assert_actor(match_state: dict[str, Any], token: Optional[str]) -> Owner:
+    """Same as viewer_for but additionally enforces it is this player's turn (PVP only)."""
+    actor = viewer_for(match_state, token)
+    if match_state.get("mode") == "pvp" and match_state["current_turn"] != actor:
+        # Repick is the one exception: in PVP both players may submit during a tie.
+        if match_state["phase"] != "repick":
+            raise HTTPException(status_code=403, detail="It is not your turn.")
+    return actor
 
 
 def piece_at(match_state: dict[str, Any], row: int, col: int) -> dict[str, Any] | None:
@@ -314,6 +365,7 @@ def end_match(match_state: dict[str, Any], winner: Owner, reason: str) -> None:
     match_state["current_turn"] = "none"
     match_state["result"] = {"winner": winner, "reason": reason}
     match_state["message"] = reason
+    append_log(match_state, f"Match finished. Winner: {winner}. Reason: {reason}")
 
 
 def apply_duel_outcome(
@@ -336,11 +388,16 @@ def apply_duel_outcome(
         "tie": False,
         "decoyAbsorbed": False,
     }
-    attacker["weapon"] = attacker_weapon
-    defender["weapon"] = defender_weapon
+    # NOTE: do NOT mutate piece["weapon"] here. Tie-repicks pick a fresh weapon
+    # for that exchange only. Persisting them silently changed each piece's
+    # canonical weapon after every duel and produced wrong outcomes later.
 
-    match_state["known_player_weapons"][attacker["id"]] = attacker_weapon
-    match_state["known_ai_weapons"][defender["id"]] = defender_weapon
+    if attacker["owner"] == "player":
+        match_state["known_player_weapons"][attacker["id"]] = attacker_weapon
+        match_state["known_ai_weapons"][defender["id"]] = defender_weapon
+    else:
+        match_state["known_ai_weapons"][attacker["id"]] = attacker_weapon
+        match_state["known_player_weapons"][defender["id"]] = defender_weapon
 
     if winner == "attacker":
         if defender["role"] == "decoy":
@@ -363,6 +420,11 @@ def apply_duel_outcome(
                 )
             else:
                 match_state["message"] = "Your attack succeeded." if attacker["owner"] == "player" else "Claude won the duel."
+            append_log(
+                match_state,
+                f"Duel: {debug_piece_name(attacker)} defeated {debug_piece_name(defender)} with "
+                f"{weapon_title(attacker_weapon)} vs {weapon_title(defender_weapon)}.",
+            )
     else:
         attacker["alive"] = False
         duel["eliminatedId"] = attacker["id"]
@@ -379,10 +441,21 @@ def apply_duel_outcome(
             )
         else:
             match_state["message"] = "Claude defended successfully." if defender["owner"] == "ai" else "Your defense succeeded."
+        append_log(
+            match_state,
+            f"Duel: {debug_piece_name(defender)} defended against {debug_piece_name(attacker)} with "
+            f"{weapon_title(defender_weapon)} over {weapon_title(attacker_weapon)}.",
+        )
 
     if match_state["phase"] != "finished":
-        match_state["phase"] = "ai_turn" if initiated_by == "player" else "player_turn"
-        match_state["current_turn"] = "ai" if initiated_by == "player" else "player"
+        next_owner: Owner = "ai" if initiated_by == "player" else "player"
+        match_state["current_turn"] = next_owner
+        # In PVP both turns are human turns — keep phase as player_turn so the
+        # frontend AI auto-move never fires.
+        if match_state.get("mode") == "pvp":
+            match_state["phase"] = "player_turn"
+        else:
+            match_state["phase"] = "ai_turn" if next_owner == "ai" else "player_turn"
     match_state["last_duel"] = duel
 
 
@@ -423,6 +496,11 @@ def resolve_attack(
             "tie": True,
             "decoyAbsorbed": False,
         }
+        append_log(
+            match_state,
+            f"Duel tie: {debug_piece_name(attacker)} and {debug_piece_name(defender)} both showed "
+            f"{weapon_title(attacker_weapon or attacker['weapon'])}. Repick required.",
+        )
         return
 
     match_state["pending_repick"] = None
@@ -549,14 +627,26 @@ def choose_ai_move_with_claude(match_state: dict[str, Any]) -> tuple[dict[str, A
     return attacker, defender, reasoning or "AI used Claude guidance."
 
 
-def create_match_state(difficulty: str) -> dict[str, Any]:
+def create_match_state(
+    difficulty: str,
+    mode: str = "ai",
+    players: dict[str, str] | None = None,
+) -> dict[str, Any]:
     squads = generate_squads()
     match_id = uuid.uuid4().hex[:10]
     pieces = deepcopy(squads["player"]) + deepcopy(squads["ai"])
+    seen_cells: set[tuple[int, int]] = set()
+    for piece in pieces:
+        cell = (piece["row"], piece["col"])
+        if cell in seen_cells:
+            raise HTTPException(status_code=500, detail="Duplicate starting cell in squad layout.")
+        seen_cells.add(cell)
     started_at = time.time()
     return {
         "id": match_id,
         "difficulty": difficulty,
+        "mode": mode,
+        "players": players or {"player": "You", "ai": "Claude"},
         "phase": "reveal",
         "current_turn": "player",
         "started_at": started_at,
@@ -574,18 +664,29 @@ def create_match_state(difficulty: str) -> dict[str, Any]:
         "last_duel": None,
         "pending_repick": None,
         "result": None,
+        "event_log": [],
     }
 
 
 def apply_move(match_state: dict[str, Any], piece: dict[str, Any], row: int, col: int, owner: Owner) -> None:
+    from_row = piece["row"]
+    from_col = piece["col"]
     piece["row"] = row
     piece["col"] = col
     match_state["last_duel"] = None
     match_state["message"] = (
         "Move complete. Pick your next action." if owner == "player" else "Claude advanced a piece."
     )
-    match_state["phase"] = "ai_turn" if owner == "player" else "player_turn"
-    match_state["current_turn"] = "ai" if owner == "player" else "player"
+    next_owner: Owner = "ai" if owner == "player" else "player"
+    match_state["current_turn"] = next_owner
+    if match_state.get("mode") == "pvp":
+        match_state["phase"] = "player_turn"
+    else:
+        match_state["phase"] = "ai_turn" if next_owner == "ai" else "player_turn"
+    append_log(
+        match_state,
+        f"Move: {debug_piece_name(piece)} moved from R{from_row}C{from_col} to R{row}C{col}. Next turn: {next_owner}.",
+    )
 
 
 @app.post("/api/squad/generate")
@@ -595,49 +696,78 @@ def generate_squad_endpoint(_payload: SquadGenerateRequest) -> dict[str, Any]:
 
 @app.post("/api/match/create")
 def create_match(payload: MatchCreateRequest) -> dict[str, Any]:
-    match_state = create_match_state(payload.difficulty)
+    # Solo-vs-AI matches are created here. PVP matches are created via /api/lobby/{id}/join.
+    if payload.mode == "pvp":
+        raise HTTPException(status_code=400, detail="PVP matches must be created via the lobby.")
+    match_state = create_match_state(payload.difficulty, "ai")
+    append_log(match_state, f"Match created. Mode: ai. Difficulty: {payload.difficulty}. Reveal started.")
     MATCHES[match_state["id"]] = match_state
     return build_player_view(match_state)
 
 
 @app.post("/api/match/{match_id}/reveal/complete")
-def complete_reveal(match_id: str, _payload: RevealCompleteRequest) -> dict[str, Any]:
+def complete_reveal(
+    match_id: str,
+    _payload: RevealCompleteRequest,
+    x_player_token: Optional[str] = Header(default=None),
+) -> dict[str, Any]:
     match_state = match_or_404(match_id)
+    viewer = viewer_for(match_state, x_player_token)
     if match_state["phase"] == "reveal":
         assign_roles(match_state)
         match_state["phase"] = "player_turn"
         match_state["current_turn"] = "player"
-        match_state["message"] = "Your turn. Pick an attacker and an enemy target."
-    return build_player_view(match_state)
+        if match_state.get("mode") == "pvp":
+            host_name = match_state["players"].get("player", "Player 1")
+            match_state["message"] = f"{host_name}'s turn. Pick a piece and act."
+        else:
+            match_state["message"] = "Your turn. Pick an attacker and an enemy target."
+        append_log(match_state, "Reveal ended. Roles assigned. First turn started.")
+    return build_player_view(match_state, viewer)
 
 
 @app.post("/api/match/{match_id}/turn/player-attack")
-def player_attack(match_id: str, payload: PlayerAttackRequest) -> dict[str, Any]:
+def player_attack(
+    match_id: str,
+    payload: PlayerAttackRequest,
+    x_player_token: Optional[str] = Header(default=None),
+) -> dict[str, Any]:
     match_state = match_or_404(match_id)
     if match_state["phase"] != "player_turn":
-        raise HTTPException(status_code=400, detail="It is not the player's turn.")
+        raise HTTPException(status_code=400, detail="It is not a player turn.")
+    actor = assert_actor(match_state, x_player_token)
 
     attacker = next((piece for piece in match_state["pieces"] if piece["id"] == payload.attacker_id), None)
     defender = next((piece for piece in match_state["pieces"] if piece["id"] == payload.target_id), None)
     if not attacker or not defender or not attacker["alive"] or not defender["alive"]:
         raise HTTPException(status_code=400, detail="Invalid duel target.")
-    if attacker["owner"] != "player" or defender["owner"] != "ai":
+    if attacker["owner"] != actor or defender["owner"] == actor:
         raise HTTPException(status_code=400, detail="Invalid attacker or target.")
     if defender not in adjacent_enemy_targets(match_state, attacker):
         raise HTTPException(status_code=400, detail="Target is not adjacent.")
 
-    resolve_attack(match_state, attacker, defender, "player")
-    return build_player_view(match_state)
+    append_log(
+        match_state,
+        f"Attack declared: {debug_piece_name(attacker)} at R{attacker['row']}C{attacker['col']} -> "
+        f"{debug_piece_name(defender)} at R{defender['row']}C{defender['col']}.",
+    )
+    resolve_attack(match_state, attacker, defender, actor)
+    return build_player_view(match_state, viewer_for(match_state, x_player_token))
 
 
 @app.post("/api/match/{match_id}/turn/player-move")
-def player_move(match_id: str, payload: PlayerMoveRequest) -> dict[str, Any]:
+def player_move(
+    match_id: str,
+    payload: PlayerMoveRequest,
+    x_player_token: Optional[str] = Header(default=None),
+) -> dict[str, Any]:
     match_state = match_or_404(match_id)
     if match_state["phase"] != "player_turn":
-        raise HTTPException(status_code=400, detail="It is not the player's turn.")
+        raise HTTPException(status_code=400, detail="It is not a player turn.")
+    actor = assert_actor(match_state, x_player_token)
 
     piece = next((candidate for candidate in match_state["pieces"] if candidate["id"] == payload.piece_id), None)
-    if not piece or not piece["alive"] or piece["owner"] != "player":
+    if not piece or not piece["alive"] or piece["owner"] != actor:
         raise HTTPException(status_code=400, detail="Invalid piece.")
 
     destination = position_key(payload.row, payload.col)
@@ -646,12 +776,16 @@ def player_move(match_id: str, payload: PlayerMoveRequest) -> dict[str, Any]:
     if piece_at(match_state, payload.row, payload.col) is not None:
         raise HTTPException(status_code=400, detail="Destination is occupied.")
 
-    apply_move(match_state, piece, payload.row, payload.col, "player")
-    return build_player_view(match_state)
+    apply_move(match_state, piece, payload.row, payload.col, actor)
+    return build_player_view(match_state, viewer_for(match_state, x_player_token))
 
 
 @app.post("/api/match/{match_id}/turn/tie-repick")
-def tie_repick(match_id: str, payload: TieRepickRequest) -> dict[str, Any]:
+def tie_repick(
+    match_id: str,
+    payload: TieRepickRequest,
+    x_player_token: Optional[str] = Header(default=None),
+) -> dict[str, Any]:
     match_state = match_or_404(match_id)
     pending = match_state.get("pending_repick")
     if match_state["phase"] != "repick" or not pending:
@@ -659,7 +793,29 @@ def tie_repick(match_id: str, payload: TieRepickRequest) -> dict[str, Any]:
 
     attacker = next(piece for piece in match_state["pieces"] if piece["id"] == pending["attacker_id"])
     defender = next(piece for piece in match_state["pieces"] if piece["id"] == pending["target_id"])
+
+    if match_state.get("mode") == "pvp":
+        actor = viewer_for(match_state, x_player_token)
+        picks: dict[str, Any] = pending.setdefault("picks", {})
+        role = "attacker" if attacker["owner"] == actor else "defender"
+        if role in picks:
+            raise HTTPException(status_code=409, detail="You have already submitted your tie weapon. Waiting for opponent.")
+        picks[role] = payload.weapon
+        append_log(match_state, f"Tie repick: {actor} locked {weapon_title(payload.weapon)}.")
+        if "attacker" in picks and "defender" in picks:
+            resolve_attack(
+                match_state, attacker, defender,
+                pending["initiated_by"], picks["attacker"], picks["defender"],
+            )
+        else:
+            match_state["message"] = "Waiting for the other player to pick their tie weapon."
+        return build_player_view(match_state, actor)
+
     ai_weapon = random.choice(WEAPONS)
+    append_log(
+        match_state,
+        f"Tie repick: player locked {weapon_title(payload.weapon)}; ai locked {weapon_title(ai_weapon)}.",
+    )
     resolve_attack(match_state, attacker, defender, pending["initiated_by"], payload.weapon, ai_weapon)
     return build_player_view(match_state)
 
@@ -667,6 +823,8 @@ def tie_repick(match_id: str, payload: TieRepickRequest) -> dict[str, Any]:
 @app.post("/api/match/{match_id}/turn/ai-move")
 def ai_move(match_id: str) -> dict[str, Any]:
     match_state = match_or_404(match_id)
+    if match_state.get("mode") == "pvp":
+        raise HTTPException(status_code=400, detail="No AI in PVP matches.")
     if match_state["phase"] != "ai_turn":
         raise HTTPException(status_code=400, detail="It is not the AI turn.")
     started = time.time()
@@ -678,6 +836,11 @@ def ai_move(match_id: str) -> dict[str, Any]:
     if isinstance(action_target, dict) and "row" in action_target and "col" in action_target:
         apply_move(match_state, attacker, int(action_target["row"]), int(action_target["col"]), "ai")
     else:
+        append_log(
+            match_state,
+            f"AI attack declared: {debug_piece_name(attacker)} at R{attacker['row']}C{attacker['col']} -> "
+            f"{debug_piece_name(action_target)} at R{action_target['row']}C{action_target['col']}.",
+        )
         resolve_attack(match_state, attacker, action_target, "ai")
     if time.time() - started > AI_TIMEOUT_SECONDS:
         match_state["message"] = "AI timed out and used a fallback move."
@@ -686,5 +849,125 @@ def ai_move(match_id: str) -> dict[str, Any]:
 
 
 @app.get("/api/match/{match_id}")
-def get_match(match_id: str) -> dict[str, Any]:
-    return build_player_view(match_or_404(match_id))
+def get_match(
+    match_id: str,
+    x_player_token: Optional[str] = Header(default=None),
+) -> dict[str, Any]:
+    match_state = match_or_404(match_id)
+    viewer = viewer_for(match_state, x_player_token)
+    return build_player_view(match_state, viewer)
+
+
+# ---------------------------------------------------------------------------
+# Lobby endpoints (network multiplayer matchmaking)
+# ---------------------------------------------------------------------------
+
+
+def _public_lobby(lobby: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "lobbyId": lobby["id"],
+        "hostName": lobby["host_name"],
+        "guestName": lobby.get("guest_name"),
+        "difficulty": lobby["difficulty"],
+        "status": lobby["status"],
+        "matchId": lobby.get("match_id"),
+        "createdAt": lobby["created_at"],
+    }
+
+
+@app.get("/api/lobby/list")
+def list_lobbies() -> dict[str, Any]:
+    open_lobbies = [
+        _public_lobby(lobby)
+        for lobby in LOBBIES.values()
+        if lobby["status"] == "open"
+    ]
+    open_lobbies.sort(key=lambda item: item["createdAt"], reverse=True)
+    return {"lobbies": open_lobbies}
+
+
+@app.post("/api/lobby/create")
+def create_lobby(payload: LobbyCreateRequest) -> dict[str, Any]:
+    lobby_id = uuid.uuid4().hex[:8]
+    host_token = uuid.uuid4().hex
+    lobby = {
+        "id": lobby_id,
+        "host_name": payload.display_name.strip()[:24],
+        "host_token": host_token,
+        "guest_name": None,
+        "guest_token": None,
+        "match_id": None,
+        "status": "open",
+        "difficulty": payload.difficulty,
+        "created_at": time.time(),
+    }
+    LOBBIES[lobby_id] = lobby
+    return {
+        "lobbyId": lobby_id,
+        "token": host_token,
+        "role": "host",
+        "displayName": lobby["host_name"],
+        "lobby": _public_lobby(lobby),
+    }
+
+
+@app.post("/api/lobby/{lobby_id}/join")
+def join_lobby(lobby_id: str, payload: LobbyJoinRequest) -> dict[str, Any]:
+    lobby = LOBBIES.get(lobby_id)
+    if not lobby:
+        raise HTTPException(status_code=404, detail="Lobby not found.")
+    if lobby["status"] != "open":
+        raise HTTPException(status_code=409, detail="Lobby is no longer open.")
+
+    guest_name = payload.display_name.strip()[:24]
+    guest_token = uuid.uuid4().hex
+    match_state = create_match_state(
+        lobby["difficulty"],
+        mode="pvp",
+        players={"player": lobby["host_name"], "ai": guest_name},
+    )
+    append_log(match_state, f"Match created. Mode: pvp. Difficulty: {lobby['difficulty']}. Reveal started.")
+    MATCHES[match_state["id"]] = match_state
+    TOKENS[lobby["host_token"]] = {
+        "match_id": match_state["id"],
+        "owner": "player",
+        "display_name": lobby["host_name"],
+    }
+    TOKENS[guest_token] = {
+        "match_id": match_state["id"],
+        "owner": "ai",
+        "display_name": guest_name,
+    }
+    lobby.update({
+        "guest_name": guest_name,
+        "guest_token": guest_token,
+        "match_id": match_state["id"],
+        "status": "started",
+    })
+    return {
+        "lobbyId": lobby_id,
+        "token": guest_token,
+        "role": "guest",
+        "displayName": guest_name,
+        "matchId": match_state["id"],
+        "lobby": _public_lobby(lobby),
+    }
+
+
+@app.get("/api/lobby/{lobby_id}")
+def get_lobby(lobby_id: str) -> dict[str, Any]:
+    lobby = LOBBIES.get(lobby_id)
+    if not lobby:
+        raise HTTPException(status_code=404, detail="Lobby not found.")
+    return _public_lobby(lobby)
+
+
+@app.post("/api/lobby/{lobby_id}/cancel")
+def cancel_lobby(lobby_id: str, x_player_token: Optional[str] = Header(default=None)) -> dict[str, Any]:
+    lobby = LOBBIES.get(lobby_id)
+    if not lobby:
+        raise HTTPException(status_code=404, detail="Lobby not found.")
+    if lobby["status"] != "open" or lobby["host_token"] != x_player_token:
+        raise HTTPException(status_code=403, detail="Cannot cancel this lobby.")
+    lobby["status"] = "closed"
+    return _public_lobby(lobby)

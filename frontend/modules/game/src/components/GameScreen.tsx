@@ -116,23 +116,24 @@ export function GameScreen() {
               </div>
             </header>
 
-            <section className="hud-grid">
-              <div className="panel hud-card">
-                <span className="hud-label">Phase</span>
-                <strong>{match.phase.replace("_", " ")}</strong>
-                <p>{match.message}</p>
-              </div>
-              <div className="panel hud-card">
-                <span className="hud-label">Turn</span>
-                <strong>{match.currentTurn === "player" ? "Your move" : match.currentTurn === "ai" ? "Claude thinking" : "Match over"}</strong>
-                <p>{match.phase === "reveal" ? `${revealSecondsLeft}s reveal left` : `Difficulty: ${match.difficulty}`}</p>
-              </div>
-              <div className="panel hud-card">
-                <span className="hud-label">Stats</span>
-                <strong>{match.stats.playerDuelsWon} won / {match.stats.playerDuelsLost} lost</strong>
-                <p>{match.stats.tieSequences} tie loops, {match.stats.decoyAbsorbed} decoy absorbs</p>
-              </div>
-            </section>
+            <section className="match-shell">
+              <aside className="hud-aside">
+                <div className="panel hud-card">
+                  <span className="hud-label">Phase</span>
+                  <strong>{match.phase.replace("_", " ")}</strong>
+                  <p>{match.message}</p>
+                </div>
+                <div className="panel hud-card">
+                  <span className="hud-label">Turn</span>
+                  <strong>{match.currentTurn === "player" ? "Your move" : match.currentTurn === "ai" ? "Claude thinking" : "Match over"}</strong>
+                  <p>{match.phase === "reveal" ? `${revealSecondsLeft}s reveal left` : `Difficulty: ${match.difficulty}`}</p>
+                </div>
+                <div className="panel hud-card">
+                  <span className="hud-label">Stats</span>
+                  <strong>{match.stats.playerDuelsWon} won / {match.stats.playerDuelsLost} lost</strong>
+                  <p>{match.stats.tieSequences} tie loops, {match.stats.decoyAbsorbed} decoy absorbs</p>
+                </div>
+              </aside>
 
             <section className="battle-grid">
               <div className="panel board-panel">
@@ -231,6 +232,22 @@ export function GameScreen() {
                   )}
                 </div>
 
+                <div className="panel" data-testid="debug-log-panel">
+                  <h2>Debug Log</h2>
+                  {match.eventLog && match.eventLog.length > 0 ? (
+                    <div className="debug-log">
+                      {match.eventLog.slice().reverse().map((entry) => (
+                        <div key={`${entry.turn}-${entry.message}`} className="debug-log__entry">
+                          <span className="debug-log__turn">#{entry.turn}</span>
+                          <p>{entry.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p>No moves logged yet.</p>
+                  )}
+                </div>
+
                 {match.phase === "repick" ? (
                   <div className="panel" data-testid="repick-panel">
                     <h2>Tie Repick</h2>
@@ -264,6 +281,7 @@ export function GameScreen() {
                   </div>
                 ) : null}
               </div>
+            </section>
             </section>
           </>
         )}

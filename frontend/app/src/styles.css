@@ -204,6 +204,31 @@ textarea {
   margin-bottom: 20px;
 }
 
+/* Side-mounted HUD: a vertical column to the left of the centered board. */
+.match-shell {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.hud-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: sticky;
+  top: 16px;
+}
+
+.hud-aside .hud-card {
+  padding: 16px 18px;
+}
+
+.match-shell .battle-grid {
+  /* The board+sidebar live in the second column; keep the original 2-col layout inside it. */
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.7fr);
+}
+
 .hud-card {
   padding: 18px 20px;
 }
@@ -343,9 +368,14 @@ textarea {
 
 .squad-cell__meta {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
-  font-size: 1.35rem;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.squad-cell__meta span {
+  font-size: 2rem;
 }
 
 .sidebar-stack {
@@ -371,6 +401,33 @@ textarea {
   line-height: 1.6;
 }
 
+.debug-log {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.debug-log__entry {
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.debug-log__entry p {
+  margin: 6px 0 0;
+}
+
+.debug-log__turn {
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
 .repick-row {
   display: flex;
   flex-wrap: wrap;
@@ -388,8 +445,20 @@ textarea {
 
 @media (max-width: 980px) {
   .hud-grid,
-  .battle-grid {
+  .battle-grid,
+  .match-shell,
+  .match-shell .battle-grid {
     grid-template-columns: 1fr;
+  }
+
+  .hud-aside {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .hud-aside .hud-card {
+    flex: 1 1 220px;
   }
 
   .squad-layout {

@@ -54,6 +54,7 @@ function matchView(overrides: Partial<Record<string, unknown>> = {}) {
     revealEndsAt: Date.now() / 1000 + 20,
     duel: null,
     result: null,
+    eventLog: [{ turn: 1, message: "Match created. Mode: ai. Difficulty: medium. Reveal started." }],
     ...overrides,
   };
 }
@@ -84,6 +85,7 @@ describe("App", () => {
     expect(await screen.findByTestId("battle-board")).toBeInTheDocument();
     expect(screen.getByLabelText(/Rock flag/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Enemy silhouette/i)).toBeInTheDocument();
+    expect(screen.getByTestId("debug-log-panel")).toHaveTextContent(/Match created/i);
   });
 
   it("sends a player move after selecting a piece and an empty legal cell", async () => {

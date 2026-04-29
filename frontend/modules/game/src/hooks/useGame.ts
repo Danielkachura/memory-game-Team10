@@ -3,7 +3,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 type Difficulty = "easy" | "medium" | "hard";
 type Weapon = "rock" | "paper" | "scissors";
 type Owner = "player" | "ai";
+type Mode = "ai" | "pvp";
 type Phase = "setup" | "reveal" | "player_turn" | "ai_turn" | "repick" | "finished";
+
+export interface UseGameOptions {
+  /** PVP only: existing match to attach to. If provided, no new match is created. */
+  initialMatchId?: string;
+  /** PVP only: session token issued by the lobby. Sent as X-Player-Token. */
+  token?: string;
+}
 
 export interface VisiblePiece {
   id: string;
@@ -33,9 +41,16 @@ interface DuelSummary {
   revealedRole?: string;
 }
 
+interface MatchLogEntry {
+  turn: number;
+  message: string;
+}
+
 interface MatchView {
   matchId: string;
   phase: Phase;
+  mode?: Mode;
+  viewer?: Owner;
   currentTurn: Owner | "none";
   difficulty: Difficulty;
   message: string;
@@ -50,7 +65,9 @@ interface MatchView {
   revealEndsAt: number;
   duel: DuelSummary | null;
   result: { winner: Owner; reason: string } | null;
-  repick?: { attackerId: string; targetId: string };
+  repick?: { attackerId: string; targetId: string; picksReceived?: string[] };
+  players?: { player?: string; ai?: string };
+  eventLog?: MatchLogEntry[];
 }
 
 type TestWindow = Window & {
@@ -66,10 +83,14 @@ const DIFFICULTIES: Array<{ id: Difficulty; label: string; detail: string }> = [
   { id: "hard", label: "Hard", detail: "AI pressures known favorable matchups." },
 ];
 
-async function postJson<T>(url: string, body?: unknown): Promise<T> {
+async function postJson<T>(url: string, body?: unknown, token?: string): Promise<T> {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (token) {
+    headers["x-player-token"] = token;
+  }
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers,
     body: body === undefined ? "{}" : JSON.stringify(body),
   });
   if (!response.ok) {
@@ -79,7 +100,21 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function useGame() {
+async function getJson<T>(url: string, token?: string): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers["x-player-token"] = token;
+  }
+  const response = await fetch(url, { method: "GET", headers });
+  if (!response.ok) {
+    const fallback = await response.text();
+    throw new Error(fallback || `Request failed with ${response.status}.`);
+  }
+  return response.json() as Promise<T>;
+}
+
+export function useGame(options: UseGameOptions = {}) {
+  const { initialMatchId, token } = options;
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>("medium");
   const [match, setMatch] = useState<MatchView | null>(null);
   const [selectedAttackerId, setSelectedAttackerId] = useState<string | null>(null);
@@ -105,7 +140,7 @@ export function useGame() {
         if (!current) {
           return;
         }
-        const next = await postJson<MatchView>(`/api/match/${current.matchId}/reveal/complete`, { confirmed: true });
+        const next = await postJson<MatchView>(`/api/match/${current.matchId}/reveal/complete`, { confirmed: true }, token);
         setMatch(next);
       },
       getState: () => matchRef.current,
@@ -141,7 +176,9 @@ export function useGame() {
   }, [match, revealSecondsLeft, revealArmed]);
 
   useEffect(() => {
-    if (!match || match.phase !== "ai_turn" || aiInFlightRef.current) {
+    // AI auto-move only fires for the solo-vs-Claude mode. PVP never enters
+    // "ai_turn" phase (both turns are player_turn) so this is doubly safe.
+    if (!match || match.phase !== "ai_turn" || match.mode === "pvp" || aiInFlightRef.current) {
       return;
     }
     aiInFlightRef.current = true;
@@ -158,11 +195,64 @@ export function useGame() {
     return () => window.clearTimeout(timeout);
   }, [match]);
 
+  // PVP: load the initial match state for an attached lobby match.
+  useEffect(() => {
+    if (!initialMatchId || !token || matchRef.current) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const view = await getJson<MatchView>(`/api/match/${initialMatchId}`, token);
+        if (!cancelled) setMatch(view);
+      } catch (cause) {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : "Unable to load match.");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [initialMatchId, token]);
+
+  // PVP: poll for opponent moves while it is not your turn or while waiting on a tie repick.
+  useEffect(() => {
+    if (!match || match.mode !== "pvp" || !token) {
+      return undefined;
+    }
+    if (match.phase === "finished") {
+      return undefined;
+    }
+    const myTurn = match.viewer === match.currentTurn;
+    const waitingForOpponentRepick =
+      match.phase === "repick" &&
+      match.repick?.picksReceived?.includes(match.viewer === "player" ? "attacker" : "defender") &&
+      (match.repick.picksReceived?.length ?? 0) < 2;
+    const shouldPoll = !myTurn || waitingForOpponentRepick || match.phase === "reveal";
+    if (!shouldPoll) {
+      return undefined;
+    }
+    const interval = window.setInterval(async () => {
+      try {
+        const view = await getJson<MatchView>(`/api/match/${match.matchId}`, token);
+        setMatch(view);
+      } catch (cause) {
+        // Ignore transient errors during polling.
+        void cause;
+      }
+    }, 1500);
+    return () => window.clearInterval(interval);
+  }, [match, token]);
+
   const boardCells = useMemo(() => {
+    // CRITICAL: only alive pieces occupy a cell. Dead pieces remain in the
+    // board payload (with alive=false) at their grave coordinates. If we let
+    // them into the lookup map, an alive piece sharing the same (row,col)
+    // could be overwritten by the corpse depending on iteration order, which
+    // looked like pieces "switching" or "cloning" to the user.
     const lookup = new Map<string, VisiblePiece>();
-    (match?.board ?? []).forEach((piece) => {
-      lookup.set(`${piece.row}-${piece.col}`, piece);
-    });
+    (match?.board ?? [])
+      .filter((piece) => piece.alive)
+      .forEach((piece) => {
+        lookup.set(`${piece.row}-${piece.col}`, piece);
+      });
     const cells: Array<{ row: number; col: number; piece: VisiblePiece | null }> = [];
     for (let row = 6; row >= 1; row -= 1) {
       for (let col = 1; col <= 5; col += 1) {
@@ -172,21 +262,27 @@ export function useGame() {
     return cells;
   }, [match]);
 
+  const viewerOwner: Owner = match?.viewer ?? "player";
+  const isMyTurn = match ? match.currentTurn === viewerOwner : false;
+
   const legalMoveTargets = useMemo(() => {
-    if (!match || match.phase !== "player_turn" || !selectedAttackerId) {
+    if (!match || match.phase !== "player_turn" || !selectedAttackerId || !isMyTurn) {
       return new Set<string>();
     }
 
     const selectedPiece = match.board.find((piece) => piece.id === selectedAttackerId);
-    if (!selectedPiece || selectedPiece.owner !== "player" || !selectedPiece.alive) {
+    if (!selectedPiece || selectedPiece.owner !== viewerOwner || !selectedPiece.alive) {
       return new Set<string>();
     }
 
     const occupied = new Set(
       match.board.filter((piece) => piece.alive).map((piece) => `${piece.row}-${piece.col}`),
     );
-    const candidates = [
-      [selectedPiece.row + 1, selectedPiece.col],
+    // Player advances toward the enemy: row +1 for owner=player (viewing up),
+    // row -1 for owner=ai (player 2 advances downward toward player 1).
+    const forwardDelta = selectedPiece.owner === "player" ? 1 : -1;
+    const candidates: Array<[number, number]> = [
+      [selectedPiece.row + forwardDelta, selectedPiece.col],
       [selectedPiece.row, selectedPiece.col - 1],
       [selectedPiece.row, selectedPiece.col + 1],
     ];
@@ -197,15 +293,15 @@ export function useGame() {
         .filter(([row, col]) => !occupied.has(`${row}-${col}`))
         .map(([row, col]) => `${row}-${col}`),
     );
-  }, [match, selectedAttackerId]);
+  }, [match, selectedAttackerId, viewerOwner, isMyTurn]);
 
   const legalAttackTargets = useMemo(() => {
-    if (!match || match.phase !== "player_turn" || !selectedAttackerId) {
+    if (!match || match.phase !== "player_turn" || !selectedAttackerId || !isMyTurn) {
       return new Set<string>();
     }
 
     const selectedPiece = match.board.find((piece) => piece.id === selectedAttackerId);
-    if (!selectedPiece || selectedPiece.owner !== "player" || !selectedPiece.alive) {
+    if (!selectedPiece || selectedPiece.owner !== viewerOwner || !selectedPiece.alive) {
       return new Set<string>();
     }
 
@@ -214,19 +310,19 @@ export function useGame() {
         .filter(
           (piece) =>
             piece.alive &&
-            piece.owner === "ai" &&
+            piece.owner !== viewerOwner &&
             Math.abs(piece.row - selectedPiece.row) + Math.abs(piece.col - selectedPiece.col) === 1,
         )
         .map((piece) => piece.id),
     );
-  }, [match, selectedAttackerId]);
+  }, [match, selectedAttackerId, viewerOwner, isMyTurn]);
 
   async function startMatch() {
     setLoading(true);
     setError(null);
     setSelectedAttackerId(null);
     try {
-      const created = await postJson<MatchView>("/api/match/create", { difficulty: selectedDifficulty });
+      const created = await postJson<MatchView>("/api/match/create", { difficulty: selectedDifficulty }, token);
       setMatch(created);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to create match.");
@@ -241,7 +337,7 @@ export function useGame() {
       return;
     }
     try {
-      const next = await postJson<MatchView>(`/api/match/${current.matchId}/reveal/complete`, { confirmed: true });
+      const next = await postJson<MatchView>(`/api/match/${current.matchId}/reveal/complete`, { confirmed: true }, token);
       setMatch(next);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to complete reveal.");
@@ -259,7 +355,7 @@ export function useGame() {
       const next = await postJson<MatchView>(`/api/match/${current.matchId}/turn/player-attack`, {
         attackerId: selectedAttackerId,
         targetId,
-      });
+      }, token);
       setMatch(next);
       setSelectedAttackerId(null);
     } catch (cause) {
@@ -279,10 +375,9 @@ export function useGame() {
     try {
       const next = await postJson<MatchView>(`/api/match/${current.matchId}/turn/player-move`, {
         pieceId: selectedAttackerId,
-        attackerId: selectedAttackerId,
         row,
         col,
-      });
+      }, token);
       setMatch(next);
       setSelectedAttackerId(null);
     } catch (cause) {
@@ -300,7 +395,7 @@ export function useGame() {
     setLoading(true);
     setError(null);
     try {
-      const next = await postJson<MatchView>(`/api/match/${current.matchId}/turn/tie-repick`, { weapon });
+      const next = await postJson<MatchView>(`/api/match/${current.matchId}/turn/tie-repick`, { weapon }, token);
       setMatch(next);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Repick failed.");
@@ -313,15 +408,15 @@ export function useGame() {
     if (!match) {
       return;
     }
-    if (match.phase !== "player_turn" || !piece.alive) {
+    if (match.phase !== "player_turn" || !piece.alive || !isMyTurn) {
       return;
     }
-    if (piece.owner === "player") {
+    if (piece.owner === viewerOwner) {
       setSelectedAttackerId(piece.id);
       setError(null);
       return;
     }
-    if (piece.owner === "ai" && selectedAttackerId) {
+    if (piece.owner !== viewerOwner && selectedAttackerId) {
       if (!legalAttackTargets.has(piece.id)) {
         setError("You can only duel an adjacent enemy.");
         return;
@@ -331,7 +426,7 @@ export function useGame() {
   }
 
   function onEmptyCellClick(row: number, col: number) {
-    if (!selectedAttackerId || match?.phase !== "player_turn") {
+    if (!selectedAttackerId || match?.phase !== "player_turn" || !isMyTurn) {
       return;
     }
     if (!legalMoveTargets.has(`${row}-${col}`)) {
@@ -352,6 +447,7 @@ export function useGame() {
     boardCells,
     difficulties: DIFFICULTIES,
     error,
+    isMyTurn,
     loading,
     match,
     legalMoveTargets,
@@ -365,5 +461,6 @@ export function useGame() {
     setSelectedDifficulty,
     startMatch,
     submitRepick,
+    viewerOwner,
   };
 }
