@@ -24,7 +24,7 @@ function piece(
     row,
     col,
     alive: overrides.alive ?? true,
-    label: overrides.label ?? (owner === "player" ? "Captain Quartz" : "Hidden Operative"),
+    label: overrides.label ?? (owner === "player" ? "Rock flag" : "Hidden Operative"),
     weapon: overrides.weapon ?? null,
     weaponIcon: overrides.weaponIcon ?? null,
     role: overrides.role ?? null,
@@ -82,11 +82,11 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "Start Match" }));
 
     expect(await screen.findByTestId("battle-board")).toBeInTheDocument();
-    expect(screen.getByLabelText(/Captain Quartz/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Rock flag/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Enemy silhouette/i)).toBeInTheDocument();
   });
 
-  it("sends a player attack after selecting an attacker and target", async () => {
+  it("sends a player move after selecting a piece and an empty legal cell", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");
     fetchMock
       .mockResolvedValueOnce({
@@ -99,18 +99,10 @@ describe("App", () => {
           matchView({
             phase: "ai_turn",
             currentTurn: "ai",
-            duel: {
-              attackerId: "player-1",
-              attackerName: "Captain Quartz",
-              attackerWeapon: "rock",
-              defenderId: "ai-1",
-              defenderName: "Hidden Operative",
-              defenderWeapon: "scissors",
-              winner: "attacker",
-              tie: false,
-              decoyAbsorbed: false,
-              revealedRole: "soldier",
-            },
+            board: [
+              piece("player-1", "player", 2, 1, { weapon: "rock", weaponIcon: "🪨", role: "flag", roleIcon: "🚩", silhouette: false }),
+              piece("ai-1", "ai", 6, 1, { silhouette: true }),
+            ],
           }),
       } as Response)
       .mockResolvedValueOnce({
@@ -127,15 +119,15 @@ describe("App", () => {
     render(<App />);
 
     await user.click(screen.getByRole("button", { name: "Start Match" }));
-    await user.click(await screen.findByLabelText(/Captain Quartz/i));
-    await user.click(screen.getByLabelText(/Enemy silhouette/i));
+    await user.click(await screen.findByLabelText(/Rock flag/i));
+    await user.click(screen.getByLabelText(/Empty cell row 2 col 1/i));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/match/match-1/turn/player-attack",
+        "/api/match/match-1/turn/player-move",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ attackerId: "player-1", targetId: "ai-1" }),
+          body: JSON.stringify({ pieceId: "player-1", row: 2, col: 1 }),
         }),
       );
     });

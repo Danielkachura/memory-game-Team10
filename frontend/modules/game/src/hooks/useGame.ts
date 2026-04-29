@@ -86,6 +86,7 @@ export function useGame() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [revealSecondsLeft, setRevealSecondsLeft] = useState(0);
+  const [revealArmed, setRevealArmed] = useState(false);
   const aiInFlightRef = useRef(false);
   const matchRef = useRef<MatchView | null>(null);
 
@@ -117,11 +118,15 @@ export function useGame() {
   useEffect(() => {
     if (!match || match.phase !== "reveal") {
       setRevealSecondsLeft(0);
+      setRevealArmed(false);
       return undefined;
     }
     const tick = () => {
       const remaining = Math.max(0, Math.ceil(match.revealEndsAt - Date.now() / 1000));
       setRevealSecondsLeft(remaining);
+      if (remaining > 0) {
+        setRevealArmed(true);
+      }
     };
     tick();
     const interval = window.setInterval(tick, 250);
@@ -129,11 +134,11 @@ export function useGame() {
   }, [match]);
 
   useEffect(() => {
-    if (!match || match.phase !== "reveal" || revealSecondsLeft > 0) {
+    if (!match || match.phase !== "reveal" || revealSecondsLeft > 0 || !revealArmed) {
       return;
     }
     void completeReveal();
-  }, [match, revealSecondsLeft]);
+  }, [match, revealSecondsLeft, revealArmed]);
 
   useEffect(() => {
     if (!match || match.phase !== "ai_turn" || aiInFlightRef.current) {
@@ -215,6 +220,28 @@ export function useGame() {
     }
   }
 
+  async function movePiece(row: number, col: number) {
+    const current = matchRef.current;
+    if (!current || current.phase !== "player_turn" || !selectedAttackerId) {
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await postJson<MatchView>(`/api/match/${current.matchId}/turn/player-move`, {
+        pieceId: selectedAttackerId,
+        row,
+        col,
+      });
+      setMatch(next);
+      setSelectedAttackerId(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Move failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function submitRepick(weapon: Weapon) {
     const current = matchRef.current;
     if (!current || current.phase !== "repick") {
@@ -248,6 +275,13 @@ export function useGame() {
     }
   }
 
+  function onEmptyCellClick(row: number, col: number) {
+    if (!selectedAttackerId || match?.phase !== "player_turn") {
+      return;
+    }
+    void movePiece(row, col);
+  }
+
   function resetToSetup() {
     setMatch(null);
     setSelectedAttackerId(null);
@@ -261,6 +295,7 @@ export function useGame() {
     error,
     loading,
     match,
+    onEmptyCellClick,
     onPieceClick,
     resetToSetup,
     revealSecondsLeft,

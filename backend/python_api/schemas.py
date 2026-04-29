@@ -25,6 +25,12 @@ class PlayerAttackRequest(BaseModel):
     target_id: str = Field(alias="targetId")
 
 
+class PlayerMoveRequest(BaseModel):
+    piece_id: str = Field(alias="pieceId")
+    row: int
+    col: int
+
+
 class TieRepickRequest(BaseModel):
     weapon: Weapon
 

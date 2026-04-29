@@ -57,6 +57,7 @@ export function GameScreen() {
     error,
     loading,
     match,
+    onEmptyCellClick,
     onPieceClick,
     resetToSetup,
     revealSecondsLeft,
@@ -142,15 +143,27 @@ export function GameScreen() {
                   {boardCells.map((cell) => (
                     <div key={`${cell.row}-${cell.col}`} className="board-slot">
                       <span className="board-slot__coords">{`R${cell.row} C${cell.col}`}</span>
-                      <PieceButton
-                        piece={cell.piece}
-                        selected={cell.piece?.id === selectedAttackerId}
-                        onClick={() => {
-                          if (cell.piece) {
-                            onPieceClick(cell.piece);
-                          }
-                        }}
-                      />
+                      {cell.piece ? (
+                        <PieceButton
+                          piece={cell.piece}
+                          selected={cell.piece.id === selectedAttackerId}
+                          onClick={() => {
+                            const piece = cell.piece;
+                            if (piece) {
+                              onPieceClick(piece);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className="squad-cell squad-cell--empty squad-cell--emptyButton"
+                          aria-label={`Empty cell row ${cell.row} col ${cell.col}`}
+                          onClick={() => {
+                            onEmptyCellClick(cell.row, cell.col);
+                          }}
+                        />
+                      )}
                     </div>
                   ))}
                 </div>
@@ -170,6 +183,8 @@ export function GameScreen() {
                   <ul className="brief-list">
                     <li>Reveal lasts 10 seconds.</li>
                     <li>The backend hides enemy weapons and roles after reveal.</li>
+                    <li>Move front, left, or right into an empty square.</li>
+                    <li>Duel only when your piece is adjacent to an enemy.</li>
                     <li>Flag death ends the match instantly.</li>
                     <li>Decoys never die when they are attacked.</li>
                   </ul>
