@@ -279,6 +279,7 @@ export function useGame() {
     try {
       const next = await postJson<MatchView>(`/api/match/${current.matchId}/turn/player-move`, {
         pieceId: selectedAttackerId,
+        attackerId: selectedAttackerId,
         row,
         col,
       });

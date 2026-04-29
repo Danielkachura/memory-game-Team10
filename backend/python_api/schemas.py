@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 Difficulty = Literal["easy", "medium", "hard"]
 Weapon = Literal["rock", "paper", "scissors"]
@@ -26,7 +26,7 @@ class PlayerAttackRequest(BaseModel):
 
 
 class PlayerMoveRequest(BaseModel):
-    piece_id: str = Field(alias="pieceId")
+    piece_id: str = Field(validation_alias=AliasChoices("pieceId", "attackerId"))
     row: int
     col: int
 
