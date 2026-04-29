@@ -1,0 +1,36 @@
+[2m15:02:13[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/match/create[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16)
+[2m15:02:56[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/match/create[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16)
+[2m15:06:15[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/match/create[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16)
+[2m15:06:18[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/match/create[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16)
+[2m15:07:12[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/match/create[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16)
+[2m15:07:12[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/match/create[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16)
+[2m15:07:13[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/match/create[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16)
+[2m15:07:14[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/match/create[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16)
+[2m15:07:14[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/match/create[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16)
+[2m15:07:15[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/match/create[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16)
+[2m15:07:16[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/match/create[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16)
+[2m15:07:16[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/match/create[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16)

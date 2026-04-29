@@ -1,0 +1,20 @@
+INFO:     Will watch for changes in these directories: ['C:\\ai_aa\\memory-game-Team10']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [4600] using StatReload
+INFO:     Started server process [33764]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+C:\Users\מאיה\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_generate_schema.py:2264: UnsupportedFieldAttributeWarning: The 'validation_alias' attribute with value AliasChoices(choices=['pieceId', 'attackerId']) was provided to the `Field()` function, which has no effect in the context it was used. 'validation_alias' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+C:\Users\מאיה\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_generate_schema.py:2264: UnsupportedFieldAttributeWarning: The 'alias' attribute with value 'attackerId' was provided to the `Field()` function, which has no effect in the context it was used. 'alias' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+C:\Users\מאיה\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pydantic\_internal\_generate_schema.py:2264: UnsupportedFieldAttributeWarning: The 'alias' attribute with value 'targetId' was provided to the `Field()` function, which has no effect in the context it was used. 'alias' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+WARNING:  StatReload detected changes in 'backend\python_api\app.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [33764]
+INFO:     Started server process [15572]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
