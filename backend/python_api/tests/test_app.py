@@ -5,23 +5,56 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from backend.python_api.app import app
+import backend.python_api.app as battle_app
 
 
 class PythonApiTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.client = TestClient(app)
+        battle_app.MATCHES.clear()
+        self.client = TestClient(battle_app.app)
 
-    def test_rejects_invalid_feature(self) -> None:
-        response = self.client.post("/api/claude", json={"feature": "bad", "prompt": "x"})
-        self.assertEqual(response.status_code, 422)
-
-    @patch("backend.python_api.app.call_anthropic", return_value="Proxy success")
-    def test_normalizes_successful_response(self, mocked_call) -> None:
-        response = self.client.post("/api/claude", json={"feature": "hint", "prompt": "go"})
+    @patch("backend.python_api.app.generate_squads")
+    def test_creates_match_in_reveal_phase(self, mocked_generate) -> None:
+        mocked_generate.return_value = battle_app.fallback_squads()
+        response = self.client.post("/api/match/create", json={"difficulty": "medium"})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"text": "Proxy success"})
-        mocked_call.assert_called_once_with("hint", "go")
+        payload = response.json()
+        self.assertEqual(payload["phase"], "reveal")
+        self.assertEqual(len(payload["board"]), 20)
+
+    @patch("backend.python_api.app.generate_squads")
+    def test_reveal_completion_hides_enemy_state(self, mocked_generate) -> None:
+        mocked_generate.return_value = battle_app.fallback_squads()
+        create_payload = self.client.post("/api/match/create", json={"difficulty": "easy"}).json()
+        response = self.client.post(
+            f"/api/match/{create_payload['matchId']}/reveal/complete",
+            json={"confirmed": True},
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["phase"], "player_turn")
+        enemy_pieces = [piece for piece in payload["board"] if piece["owner"] == "ai" and piece["alive"]]
+        self.assertTrue(all(piece["weapon"] is None for piece in enemy_pieces))
+
+    def test_player_attack_returns_duel_summary(self) -> None:
+        create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()
+        match_id = create_payload["matchId"]
+        self.client.post(f"/api/match/{match_id}/reveal/complete", json={"confirmed": True})
+        match_state = battle_app.MATCHES[match_id]
+
+        player_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "player")
+        ai_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "ai")
+        player_piece["weapon"] = "rock"
+        ai_piece["weapon"] = "scissors"
+
+        response = self.client.post(
+            f"/api/match/{match_id}/turn/player-attack",
+            json={"attackerId": player_piece["id"], "targetId": ai_piece["id"]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["duel"]["winner"], "attacker")
 
 
 if __name__ == "__main__":

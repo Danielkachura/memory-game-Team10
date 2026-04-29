@@ -4,13 +4,27 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-ClaudeFeature = Literal["theme", "hint", "narrator"]
+Difficulty = Literal["easy", "medium", "hard"]
+Weapon = Literal["rock", "paper", "scissors"]
 
 
-class ClaudeRequest(BaseModel):
-    feature: ClaudeFeature
-    prompt: str = Field(min_length=1)
+class SquadGenerateRequest(BaseModel):
+    difficulty: Difficulty = "medium"
 
 
-class ClaudeResponse(BaseModel):
-    text: str
+class MatchCreateRequest(BaseModel):
+    difficulty: Difficulty = "medium"
+
+
+class RevealCompleteRequest(BaseModel):
+    confirmed: bool = True
+
+
+class PlayerAttackRequest(BaseModel):
+    attacker_id: str = Field(alias="attackerId")
+    target_id: str = Field(alias="targetId")
+
+
+class TieRepickRequest(BaseModel):
+    weapon: Weapon
+

@@ -1,46 +1,56 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useGame } from "../../modules/game/src/hooks/useGame";
 
-vi.mock("@ai", () => ({
-  generateHint: vi.fn().mockResolvedValue("hint"),
-  generateNarration: vi.fn().mockResolvedValue("narration"),
-  generateThemeContent: vi.fn().mockResolvedValue([]),
-}));
+function revealMatch() {
+  return {
+    matchId: "reveal-1",
+    phase: "reveal",
+    currentTurn: "player",
+    difficulty: "medium",
+    message: "Memorize the enemy squad before the reveal timer ends.",
+    board: [],
+    stats: {
+      durationSeconds: 0,
+      playerDuelsWon: 0,
+      playerDuelsLost: 0,
+      tieSequences: 0,
+      decoyAbsorbed: 0,
+    },
+    revealEndsAt: Date.now() / 1000 - 1,
+    duel: null,
+    result: null,
+  };
+}
 
 describe("useGame", () => {
-  it("flips mismatched cards back down after the delay", async () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("automatically completes the reveal when the timer expires", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => revealMatch(),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          ...revealMatch(),
+          phase: "player_turn",
+          message: "Your turn. Pick an attacker and an enemy target.",
+        }),
+      } as Response);
+
     const { result } = renderHook(() => useGame());
 
     await act(async () => {
-      await result.current.startGame();
+      await result.current.startMatch();
     });
 
-    const [firstCard, mismatchCard] = (() => {
-      const [first, ...rest] = result.current.game.cards;
-      const mismatch = rest.find((card) => card.pairId !== first.pairId);
-
-      if (!mismatch) {
-        throw new Error("Expected to find a mismatched card in the deck.");
-      }
-
-      return [first, mismatch];
-    })();
-
-    act(() => {
-      result.current.flipCard(firstCard.id);
-      result.current.flipCard(mismatchCard.id);
+    await waitFor(() => {
+      expect(result.current.match?.phase).toBe("player_turn");
     });
-
-    expect(result.current.game.flippedIds).toEqual([firstCard.id, mismatchCard.id]);
-    expect(result.current.game.cards.filter((card) => card.isFlipped)).toHaveLength(2);
-
-    await waitFor(
-      () => {
-        expect(result.current.game.flippedIds).toHaveLength(0);
-        expect(result.current.game.cards.filter((card) => card.isFlipped)).toHaveLength(0);
-      },
-      { timeout: 2000 },
-    );
   });
 });

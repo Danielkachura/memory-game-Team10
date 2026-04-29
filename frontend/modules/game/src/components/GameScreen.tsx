@@ -1,85 +1,239 @@
 import { useGame } from "../hooks/useGame";
-import { GameBoard } from "./GameBoard";
-import { GameSetup } from "./GameSetup";
-import { HintPanel } from "./HintPanel";
-import { ScorePanel } from "./ScorePanel";
-import { WinScreen } from "./WinScreen";
+
+const weaponButtons: Array<{ id: "rock" | "paper" | "scissors"; icon: string; label: string }> = [
+  { id: "rock", icon: "🪨", label: "Rock" },
+  { id: "paper", icon: "📄", label: "Paper" },
+  { id: "scissors", icon: "✂️", label: "Scissors" },
+];
+
+function PieceButton({
+  piece,
+  selected,
+  onClick,
+}: {
+  piece: {
+    id: string;
+    owner: "player" | "ai";
+    alive: boolean;
+    label: string;
+    weaponIcon: string | null;
+    roleIcon: string | null;
+    silhouette: boolean;
+  } | null;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  if (!piece) {
+    return <div className="squad-cell squad-cell--empty" aria-hidden="true" />;
+  }
+
+  const label = piece.silhouette
+    ? `${piece.owner === "ai" ? "Enemy" : "Ally"} silhouette`
+    : `${piece.label} ${piece.weaponIcon ?? ""}`.trim();
+
+  return (
+    <button
+      type="button"
+      className={`squad-cell ${piece.owner === "player" ? "squad-cell--player" : "squad-cell--ai"} ${selected ? "squad-cell--selected" : ""}`}
+      onClick={onClick}
+      disabled={!piece.alive}
+      aria-label={label}
+      data-piece-owner={piece.owner}
+      data-piece-id={piece.id}
+    >
+      <span className="squad-cell__name">{piece.label}</span>
+      <span className="squad-cell__meta">
+        {piece.roleIcon ? <span>{piece.roleIcon}</span> : null}
+        {piece.weaponIcon ? <span>{piece.weaponIcon}</span> : piece.silhouette ? <span>⬢</span> : null}
+      </span>
+    </button>
+  );
+}
 
 export function GameScreen() {
   const {
-    appThemeOptions,
-    difficultyOptions,
-    game,
-    grid,
-    hint,
-    hintStatus,
-    isResolvingTurn,
-    narration,
-    narrationStatus,
-    score,
+    boardCells,
+    difficulties,
+    error,
+    loading,
+    match,
+    onPieceClick,
+    resetToSetup,
+    revealSecondsLeft,
+    selectedAttackerId,
     selectedDifficulty,
-    selectedTheme,
     setSelectedDifficulty,
-    setSelectedTheme,
-    startGame,
-    returnToSetup,
-    requestHint,
-    flipCard,
+    startMatch,
+    submitRepick,
   } = useGame();
 
+  const selectedAttacker = match?.board.find((piece) => piece.id === selectedAttackerId) ?? null;
+
   return (
-    <main className="min-h-screen bg-bg px-md py-lg text-text sm:px-lg sm:py-xl">
-      <div className="mx-auto flex max-w-6xl flex-col gap-lg">
-        {game.status === "idle" ? (
-          <GameSetup
-            difficulty={selectedDifficulty}
-            theme={selectedTheme}
-            onDifficultyChange={setSelectedDifficulty}
-            onThemeChange={setSelectedTheme}
-            onStart={() => void startGame()}
-            difficultyOptions={difficultyOptions}
-            themeOptions={appThemeOptions}
-          />
+    <main className="squad-shell">
+      <div className="squad-backdrop" />
+      <div className="squad-layout">
+        {!match ? (
+          <section className="panel setup-panel">
+            <p className="eyebrow">Squad RPS - Team 10</p>
+            <h1 className="hero-title">Flag hunts, decoys, and hidden weapons.</h1>
+            <p className="hero-copy">
+              Memorize the enemy squad during the reveal, then duel your way to the hidden flag-bearer
+              before Claude finds yours.
+            </p>
+            <div className="difficulty-list">
+              {difficulties.map((difficulty) => (
+                <button
+                  key={difficulty.id}
+                  type="button"
+                  className={`difficulty-card ${selectedDifficulty === difficulty.id ? "difficulty-card--active" : ""}`}
+                  onClick={() => setSelectedDifficulty(difficulty.id)}
+                >
+                  <span>{difficulty.label}</span>
+                  <small>{difficulty.detail}</small>
+                </button>
+              ))}
+            </div>
+            <button type="button" className="primary-button" onClick={() => void startMatch()} disabled={loading}>
+              {loading ? "Generating squads..." : "Start Match"}
+            </button>
+            {error ? <p className="status-error">{error}</p> : null}
+          </section>
         ) : (
           <>
-            <header className="flex flex-wrap items-end justify-between gap-md">
+            <header className="squad-header">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-primary">Team 10 Memory Loop</p>
-                <h1 className="font-heading text-4xl font-bold">Memory Game</h1>
+                <p className="eyebrow">Squad RPS - Team 10</p>
+                <h1>5 x 6 hidden-info squad battle</h1>
               </div>
-              <div className="text-sm text-text-muted">{`${grid.label} grid - ${game.totalPairs} pairs`}</div>
+              <div className="header-actions">
+                <button type="button" className="secondary-button" onClick={resetToSetup}>
+                  Back To Setup
+                </button>
+              </div>
             </header>
 
-            <ScorePanel
-              moves={game.moves}
-              timeElapsed={game.timeElapsed}
-              difficulty={game.difficulty}
-              theme={game.theme}
-              onNewGame={() => void startGame(game.difficulty, game.theme)}
-              onBackToMenu={returnToSetup}
-              onHint={() => void requestHint()}
-              hintDisabled={hintStatus === "loading"}
-            />
+            <section className="hud-grid">
+              <div className="panel hud-card">
+                <span className="hud-label">Phase</span>
+                <strong>{match.phase.replace("_", " ")}</strong>
+                <p>{match.message}</p>
+              </div>
+              <div className="panel hud-card">
+                <span className="hud-label">Turn</span>
+                <strong>{match.currentTurn === "player" ? "Your move" : match.currentTurn === "ai" ? "Claude thinking" : "Match over"}</strong>
+                <p>{match.phase === "reveal" ? `${revealSecondsLeft}s reveal left` : `Difficulty: ${match.difficulty}`}</p>
+              </div>
+              <div className="panel hud-card">
+                <span className="hud-label">Stats</span>
+                <strong>{match.stats.playerDuelsWon} won / {match.stats.playerDuelsLost} lost</strong>
+                <p>{match.stats.tieSequences} tie loops, {match.stats.decoyAbsorbed} decoy absorbs</p>
+              </div>
+            </section>
 
-            <section className="grid gap-lg lg:grid-cols-[1.2fr_0.8fr]">
-              <GameBoard
-                cards={game.cards}
-                difficulty={game.difficulty}
-                onFlip={flipCard}
-                locked={game.flippedIds.length === 2 || isResolvingTurn}
-              />
-              <div className="flex flex-col gap-lg">
-                <HintPanel hint={hint} status={hintStatus} />
-                {score ? (
-                  <WinScreen
-                    score={score}
-                    recap={narration}
-                    recapLoading={narrationStatus === "loading"}
-                    onPlayAgain={() => void startGame()}
-                  />
+            <section className="battle-grid">
+              <div className="panel board-panel">
+                <div className="board-legend">
+                  <span>Rows 6-5: Claude squad</span>
+                  <span>Rows 4-3: neutral battle zone</span>
+                  <span>Rows 2-1: your squad</span>
+                </div>
+                <div className="board-grid" data-testid="battle-board">
+                  {boardCells.map((cell) => (
+                    <div key={`${cell.row}-${cell.col}`} className="board-slot">
+                      <span className="board-slot__coords">{`R${cell.row} C${cell.col}`}</span>
+                      <PieceButton
+                        piece={cell.piece}
+                        selected={cell.piece?.id === selectedAttackerId}
+                        onClick={() => {
+                          if (cell.piece) {
+                            onPieceClick(cell.piece);
+                          }
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="sidebar-stack">
+                <div className="panel">
+                  <h2>Command Brief</h2>
+                  {selectedAttacker ? (
+                    <p>
+                      Selected attacker: <strong>{selectedAttacker.label}</strong>. Click an enemy silhouette to start
+                      the duel.
+                    </p>
+                  ) : (
+                    <p>Select one of your alive operatives, then choose an enemy target.</p>
+                  )}
+                  <ul className="brief-list">
+                    <li>Reveal lasts 10 seconds.</li>
+                    <li>The backend hides enemy weapons and roles after reveal.</li>
+                    <li>Flag death ends the match instantly.</li>
+                    <li>Decoys never die when they are attacked.</li>
+                  </ul>
+                </div>
+
+                <div className="panel" data-testid="duel-panel">
+                  <h2>Latest Duel</h2>
+                  {match.duel ? (
+                    <div className="duel-summary">
+                      <p>
+                        <strong>{match.duel.attackerName}</strong> {match.duel.attackerWeapon} vs{" "}
+                        <strong>{match.duel.defenderName}</strong> {match.duel.defenderWeapon}
+                      </p>
+                      <p>
+                        {match.duel.tie
+                          ? "Tie. Repick weapons to continue."
+                          : match.duel.decoyAbsorbed
+                            ? "The Decoy absorbed the hit and stayed on the board."
+                            : match.duel.winner === "attacker"
+                              ? "Attacker won the duel."
+                              : "Defender won the duel."}
+                      </p>
+                      {match.duel.revealedRole ? <p>Revealed role: {match.duel.revealedRole}</p> : null}
+                    </div>
+                  ) : (
+                    <p>No duel yet. The first clash will reveal both weapons for that exchange only.</p>
+                  )}
+                </div>
+
+                {match.phase === "repick" ? (
+                  <div className="panel" data-testid="repick-panel">
+                    <h2>Tie Repick</h2>
+                    <p>Pick a new weapon for your operative. Claude will repick at the same time.</p>
+                    <div className="repick-row">
+                      {weaponButtons.map((weapon) => (
+                        <button
+                          key={weapon.id}
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => void submitRepick(weapon.id)}
+                          disabled={loading}
+                        >
+                          {weapon.icon} {weapon.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {match.phase === "finished" && match.result ? (
+                  <div className="panel result-panel" data-testid="result-panel">
+                    <h2>{match.result.winner === "player" ? "You Win" : "You Lose"}</h2>
+                    <p>{match.result.reason}</p>
+                    <p>
+                      Match duration: <strong>{match.stats.durationSeconds}s</strong>
+                    </p>
+                    <button type="button" className="primary-button" onClick={() => void startMatch()}>
+                      Play Again
+                    </button>
+                  </div>
                 ) : null}
               </div>
             </section>
+            {error ? <p className="status-error">{error}</p> : null}
           </>
         )}
       </div>
