@@ -143,7 +143,17 @@ export function GameScreen() {
                 </div>
                 <div className="board-grid" data-testid="battle-board">
                   {boardCells.map((cell) => (
-                    <div key={`${cell.row}-${cell.col}`} className="board-slot">
+                    <div
+                      key={`${cell.row}-${cell.col}`}
+                      className={`board-slot ${!cell.piece && legalMoveTargets.has(`${cell.row}-${cell.col}`) ? "board-slot--clickable" : ""}`}
+                      onClick={
+                        !cell.piece && legalMoveTargets.has(`${cell.row}-${cell.col}`)
+                          ? () => {
+                              onEmptyCellClick(cell.row, cell.col);
+                            }
+                          : undefined
+                      }
+                    >
                       <span className="board-slot__coords">{`R${cell.row} C${cell.col}`}</span>
                       {cell.piece ? (
                         <PieceButton
@@ -161,7 +171,8 @@ export function GameScreen() {
                           type="button"
                           className={`squad-cell squad-cell--empty squad-cell--emptyButton ${legalMoveTargets.has(`${cell.row}-${cell.col}`) ? "squad-cell--moveTarget" : ""}`}
                           aria-label={`Empty cell row ${cell.row} col ${cell.col}`}
-                          onClick={() => {
+                          onClick={(event) => {
+                            event.stopPropagation();
                             onEmptyCellClick(cell.row, cell.col);
                           }}
                         />

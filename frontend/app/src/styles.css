@@ -260,11 +260,16 @@ textarea {
   gap: 6px;
 }
 
+.board-slot--clickable {
+  cursor: pointer;
+}
+
 .board-slot__coords {
   font-size: 0.7rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--color-text-muted);
+  pointer-events: none;
 }
 
 .squad-cell {
@@ -328,7 +333,7 @@ textarea {
   display: flex;
   gap: 8px;
   align-items: center;
-  font-size: 1.15rem;
+  font-size: 1.35rem;
 }
 
 .sidebar-stack {
