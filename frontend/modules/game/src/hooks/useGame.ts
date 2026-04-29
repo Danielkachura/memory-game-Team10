@@ -199,6 +199,28 @@ export function useGame() {
     );
   }, [match, selectedAttackerId]);
 
+  const legalAttackTargets = useMemo(() => {
+    if (!match || match.phase !== "player_turn" || !selectedAttackerId) {
+      return new Set<string>();
+    }
+
+    const selectedPiece = match.board.find((piece) => piece.id === selectedAttackerId);
+    if (!selectedPiece || selectedPiece.owner !== "player" || !selectedPiece.alive) {
+      return new Set<string>();
+    }
+
+    return new Set(
+      match.board
+        .filter(
+          (piece) =>
+            piece.alive &&
+            piece.owner === "ai" &&
+            Math.abs(piece.row - selectedPiece.row) + Math.abs(piece.col - selectedPiece.col) === 1,
+        )
+        .map((piece) => piece.id),
+    );
+  }, [match, selectedAttackerId]);
+
   async function startMatch() {
     setLoading(true);
     setError(null);
@@ -295,15 +317,24 @@ export function useGame() {
     }
     if (piece.owner === "player") {
       setSelectedAttackerId(piece.id);
+      setError(null);
       return;
     }
     if (piece.owner === "ai" && selectedAttackerId) {
+      if (!legalAttackTargets.has(piece.id)) {
+        setError("You can only duel an adjacent enemy.");
+        return;
+      }
       void attack(piece.id);
     }
   }
 
   function onEmptyCellClick(row: number, col: number) {
     if (!selectedAttackerId || match?.phase !== "player_turn") {
+      return;
+    }
+    if (!legalMoveTargets.has(`${row}-${col}`)) {
+      setError("You can only move to a highlighted adjacent empty square.");
       return;
     }
     void movePiece(row, col);
@@ -323,6 +354,7 @@ export function useGame() {
     loading,
     match,
     legalMoveTargets,
+    legalAttackTargets,
     onEmptyCellClick,
     onPieceClick,
     resetToSetup,

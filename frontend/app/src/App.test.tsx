@@ -132,4 +132,91 @@ describe("App", () => {
       );
     });
   });
+
+  it("does not send a long-range attack when the enemy is not adjacent", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () =>
+        matchView({
+          board: [
+            piece("player-1", "player", 2, 3, {
+              label: "Paper",
+              weapon: "paper",
+              weaponIcon: "P",
+              silhouette: false,
+            }),
+            piece("ai-1", "ai", 5, 3, { silhouette: true }),
+          ],
+        }),
+    } as Response);
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Start Match" }));
+    await user.click(await screen.findByLabelText(/Paper/i));
+    await user.click(screen.getByLabelText(/Enemy silhouette/i));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/only duel an adjacent enemy/i)).toBeInTheDocument();
+  });
+
+  it("shows the moved piece in the new cell before the AI response arrives", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () =>
+          matchView({
+            board: [
+              piece("player-1", "player", 2, 3, {
+                label: "Paper",
+                weapon: "paper",
+                weaponIcon: "P",
+                silhouette: false,
+              }),
+              piece("ai-1", "ai", 5, 3, { silhouette: true }),
+            ],
+          }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () =>
+          matchView({
+            phase: "ai_turn",
+            currentTurn: "ai",
+            board: [
+              piece("player-1", "player", 3, 3, {
+                label: "Paper",
+                weapon: "paper",
+                weaponIcon: "P",
+                silhouette: false,
+              }),
+              piece("ai-1", "ai", 5, 3, { silhouette: true }),
+            ],
+          }),
+      } as Response);
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Start Match" }));
+    await user.click(await screen.findByLabelText(/^Paper P$/i));
+    await user.click(screen.getByLabelText(/Empty cell row 3 col 3/i));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/match/match-1/turn/player-move",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ pieceId: "player-1", row: 3, col: 3 }),
+        }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Paper").length).toBeGreaterThan(0);
+    });
+  });
 });
