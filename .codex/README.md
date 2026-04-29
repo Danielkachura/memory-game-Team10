@@ -1,28 +1,11 @@
 # Codex Project Roles
 
-Project-local Codex skills live in `.codex/skills/`.
+The legacy Memory Game Codex skills were removed.
 
-Use these role skills directly in the CLI:
+Project guidance now flows through:
 
-- `$memory-game-cto`
-- `$memory-game-architect`
-- `$memory-game-techlead-frontend`
-- `$memory-game-techlead-backend`
-- `$memory-game-dev`
-- `$memory-game-dev-frontend`
-- `$memory-game-dev-backend`
-- `$memory-game-dev-shared`
-- `$memory-game-qa`
-- `$memory-game-qa-lead`
-- `$memory-game-security-reviewer`
-- `$memory-game-founder-support`
-- `$memory-game-review`
+- `.claude/commands/CtoAgent.md`
+- `AGENTS.md`
 
-Example:
-
-```text
-Use $memory-game-cto at .codex/skills/memory-game-cto to review the architecture for a hint-system change
-Use $memory-game-dev-frontend at .codex/skills/memory-game-dev-frontend to implement a win-screen update
-Use $memory-game-qa at .codex/skills/memory-game-qa to verify the board flow
-```
+If new project-local Codex skills are added later, document them here only after they match the ARIA-RPS system.
 

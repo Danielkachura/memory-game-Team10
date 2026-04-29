@@ -1,4 +1,4 @@
-export * from "./types/game";
-export * from "./constants/gameConfig";
-export * from "./constants/themeContent";
-export * from "./utils/scoreCalculator";
+// Squad RPS — shared module
+// Game types and constants are colocated in frontend/modules/game/src/hooks/useGame.ts
+// This module is reserved for future shared Squad RPS utilities
+export {};

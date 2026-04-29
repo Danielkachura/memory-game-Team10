@@ -318,6 +318,7 @@ def apply_duel_outcome(
     if match_state["phase"] != "finished":
         match_state["phase"] = "ai_turn" if initiated_by == "player" else "player_turn"
         match_state["current_turn"] = "ai" if initiated_by == "player" else "player"
+        check_decoy_stalemate(match_state)
     match_state["last_duel"] = duel
 
 
@@ -378,6 +379,16 @@ def alive_pieces(match_state: dict[str, Any], owner: Owner) -> list[dict[str, An
         for piece in match_state["pieces"]
         if piece["owner"] == owner and piece["alive"]
     ]
+
+
+def check_decoy_stalemate(match_state: dict[str, Any]) -> None:
+    """If only the enemy Decoy remains alive, it becomes killable to prevent deadlock."""
+    if match_state["phase"] == "finished":
+        return
+    ai_alive = alive_pieces(match_state, "ai")
+    if len(ai_alive) == 1 and ai_alive[0]["role"] == "decoy":
+        ai_alive[0]["role"] = "soldier"
+        match_state["message"] = "The Decoy is the last unit standing — it can now be defeated."
 
 
 def choose_ai_move(match_state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], str]:

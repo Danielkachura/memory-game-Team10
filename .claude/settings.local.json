@@ -20,7 +20,10 @@
       "Bash(git checkout *)",
       "Bash(git merge *)",
       "Bash(ls *)",
-      "Bash(pwd)"
+      "Bash(pwd)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(curl -s -X POST http://127.0.0.1:8000/api/match/create -H \"Content-Type: application/json\" -d \"{\\\\\"difficulty\\\\\":\\\\\"medium\\\\\"}\")",
+      "Bash(curl *)"
     ],
     "deny": [
       "Bash(git push --force *)",

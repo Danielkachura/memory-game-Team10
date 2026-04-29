@@ -1,7 +1,4 @@
-export * from "./prompts/themePrompt";
-export * from "./prompts/hintPrompt";
-export * from "./prompts/narratorPrompt";
-export * from "./services/claudeClient";
-export * from "./services/themeService";
-export * from "./services/hintService";
-export * from "./services/narratorService";
+// Squad RPS — AI module
+// Claude integration is handled server-side in backend/python_api/service.py
+// This module is reserved for future client-side AI utilities
+export {};
