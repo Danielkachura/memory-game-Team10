@@ -6,7 +6,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://squad-rps-backend.up.railway.app/api/:path*"
+      "destination": "https://memory-game-team10-production.up.railway.app/api/:path*"
     },
     {
       "source": "/(.*)",
