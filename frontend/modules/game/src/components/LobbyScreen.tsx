@@ -52,7 +52,7 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
   const [pending, setPending] = useState<LobbyHandshake | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [lanUrl, setLanUrl] = useState<string>("");
+  const [lanUrl, setLanUrl] = useState<string>(typeof window !== "undefined" ? window.location.origin : "");
 
   // Persist display name.
   useEffect(() => {
@@ -60,10 +60,13 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
     if (displayName.trim()) window.localStorage.setItem(DEFAULT_NAME_KEY, displayName.trim());
   }, [displayName]);
 
-  // Fetch the server's LAN URL once on mount.
+  // Fetch the server's LAN IP and combine with the frontend's own port.
   useEffect(() => {
-    getJson<{ lanUrl: string }>("/api/server-info")
-      .then((info) => setLanUrl(info.lanUrl))
+    getJson<{ lanIp: string }>("/api/server-info")
+      .then((info) => {
+        const { protocol, port } = window.location;
+        setLanUrl(`${protocol}//${info.lanIp}${port ? `:${port}` : ""}`);
+      })
       .catch(() => setLanUrl(window.location.origin));
   }, []);
 

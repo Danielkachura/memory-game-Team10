@@ -85,8 +85,7 @@ def server_info() -> dict[str, Any]:
             lan_ip = _s.getsockname()[0]
     except Exception:
         lan_ip = "127.0.0.1"
-    port = int(os.environ.get("PORT", "8000"))
-    return {"lanUrl": f"http://{lan_ip}:{port}"}
+    return {"lanIp": lan_ip}
 
 
 app.add_api_route("/health", healthcheck, methods=["GET"])
