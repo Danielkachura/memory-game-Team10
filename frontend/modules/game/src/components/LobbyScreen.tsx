@@ -214,7 +214,7 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
               type="text"
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value.slice(0, 24))}
-              placeholder="e.g. Daniel"
+              placeholder="e.g. John"
               maxLength={24}
               style={{
                 padding: "10px 12px",
