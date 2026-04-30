@@ -996,10 +996,10 @@ def cancel_lobby(lobby_id: str, x_player_token: Optional[str] = Header(default=N
     return _public_lobby(lobby)
 
 
-# SPA static serving — only active when the React build is present (packaged exe).
-# Using a 404 exception handler instead of a catch-all route means /api/* routes
-# always take priority; the SPA only fires when no route matched.
-if _DIST.is_dir():
+# SPA static serving — only active in the packaged executable (PyInstaller).
+# In dev mode Vite serves the frontend; this block must not run there.
+import sys as _sys
+if getattr(_sys, "frozen", False) and _DIST.is_dir():
     from starlette.requests import Request
     from starlette.responses import Response
 
@@ -1011,7 +1011,6 @@ if _DIST.is_dir():
 
     @app.exception_handler(404)
     async def spa_fallback(request: Request, exc: Exception) -> Response:
-        # Let /api/* paths surface their real 404 from FastAPI.
         if request.url.path.startswith("/api/"):
             from starlette.responses import JSONResponse
             return JSONResponse({"detail": "Not Found"}, status_code=404)
