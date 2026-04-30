@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm --prefix frontend/app run build",
+  "buildCommand": "npm --prefix frontend/app run build:vercel",
   "outputDirectory": "frontend/app/dist",
   "installCommand": "npm --prefix frontend/app install",
   "framework": null,
