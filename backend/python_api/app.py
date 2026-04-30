@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import AI_TIMEOUT_SECONDS, REVEAL_SECONDS
 from .schemas import (
+    ClaudeProxyRequest,
     LobbyCreateRequest,
     LobbyJoinRequest,
     MatchCreateRequest,
@@ -713,6 +714,19 @@ def apply_move(match_state: dict[str, Any], piece: dict[str, Any], row: int, col
         match_state,
         f"Move: {debug_piece_name(piece)} moved from R{from_row}C{from_col} to R{row}C{col}. Next turn: {next_owner}.",
     )
+
+
+_FEATURE_MAX_TOKENS: dict[str, int] = {"theme": 300, "hint": 150, "narrator": 100}
+
+
+@app.post("/api/claude")
+def claude_proxy(payload: ClaudeProxyRequest) -> dict[str, str]:
+    max_tokens = _FEATURE_MAX_TOKENS.get(payload.feature, 300)
+    try:
+        text = call_claude_text(payload.prompt, max_tokens)
+    except ClaudeProxyError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    return {"text": text}
 
 
 @app.post("/api/squad/generate")

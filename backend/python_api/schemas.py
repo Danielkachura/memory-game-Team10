@@ -7,6 +7,12 @@ from pydantic import AliasChoices, BaseModel, Field
 Difficulty = Literal["easy", "medium", "hard"]
 Weapon = Literal["rock", "paper", "scissors"]
 MatchMode = Literal["ai", "pvp"]
+ClaudeFeature = Literal["theme", "hint", "narrator"]
+
+
+class ClaudeProxyRequest(BaseModel):
+    feature: ClaudeFeature
+    prompt: str
 
 
 class SquadGenerateRequest(BaseModel):

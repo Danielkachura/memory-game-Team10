@@ -1,11 +1,13 @@
 type ClaudeFeature = "theme" | "hint" | "narrator";
 
+const API_BASE: string = import.meta.env.VITE_API_BASE ?? "";
+
 export async function callClaude(feature: ClaudeFeature, prompt: string) {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 8000);
 
   try {
-    const response = await fetch("/api/claude", {
+    const response = await fetch(API_BASE + "/api/claude", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ feature, prompt }),
