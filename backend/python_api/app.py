@@ -996,11 +996,23 @@ def cancel_lobby(lobby_id: str, x_player_token: Optional[str] = Header(default=N
     return _public_lobby(lobby)
 
 
-# SPA fallback — must be registered AFTER all /api/* routes so they take priority.
+# SPA static serving — only active when the React build is present (packaged exe).
+# Using a 404 exception handler instead of a catch-all route means /api/* routes
+# always take priority; the SPA only fires when no route matched.
 if _DIST.is_dir():
+    from starlette.requests import Request
+    from starlette.responses import Response
+
     app.mount("/assets", StaticFiles(directory=str(_DIST / "assets")), name="assets")
 
     @app.get("/", include_in_schema=False)
-    @app.get("/{full_path:path}", include_in_schema=False)
-    def serve_spa(full_path: str = "") -> FileResponse:
+    def serve_root() -> FileResponse:
+        return FileResponse(str(_DIST / "index.html"))
+
+    @app.exception_handler(404)
+    async def spa_fallback(request: Request, exc: Exception) -> Response:
+        # Let /api/* paths surface their real 404 from FastAPI.
+        if request.url.path.startswith("/api/"):
+            from starlette.responses import JSONResponse
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
         return FileResponse(str(_DIST / "index.html"))
