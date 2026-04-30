@@ -111,3 +111,9 @@ pnpm-debug.log*
 tmp/
 temp/
 memory-game/
+dist/SquadRPS.exe
+dist/SquadRPS.exe.bak
+dist/assets/
+dist/index.html
+release/
+build/

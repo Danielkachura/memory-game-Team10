@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import time
 import uuid
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Literal, Optional
 
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .config import AI_TIMEOUT_SECONDS, REVEAL_SECONDS
 from .schemas import (
@@ -24,6 +28,9 @@ from .schemas import (
 from .service import ClaudeProxyError, call_claude_text
 
 app = FastAPI(title="Squad RPS Python API")
+
+# Path to the pre-built React frontend; resolved at module load time.
+_DIST = Path(__file__).resolve().parent.parent.parent / "dist"
 
 Owner = Literal["player", "ai"]
 Role = Literal["soldier", "flag", "decoy"]
@@ -974,3 +981,13 @@ def cancel_lobby(lobby_id: str, x_player_token: Optional[str] = Header(default=N
         raise HTTPException(status_code=403, detail="Cannot cancel this lobby.")
     lobby["status"] = "closed"
     return _public_lobby(lobby)
+
+
+# SPA fallback — must be registered AFTER all /api/* routes so they take priority.
+if _DIST.is_dir():
+    app.mount("/assets", StaticFiles(directory=str(_DIST / "assets")), name="assets")
+
+    @app.get("/", include_in_schema=False)
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_spa(full_path: str = "") -> FileResponse:
+        return FileResponse(str(_DIST / "index.html"))
