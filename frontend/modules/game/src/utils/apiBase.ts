@@ -1,3 +1,3 @@
-// In production on Vercel, VITE_API_BASE is set to the Railway backend URL.
-// In dev, it's empty and calls go to the Vite proxy (localhost:8000).
-export const API_BASE: string = (import.meta as { env?: Record<string, string> }).env?.VITE_API_BASE ?? "";
+// Set VITE_API_BASE to the backend URL in production (e.g. Railway).
+// In dev this is empty and Vite's proxy handles /api/* → localhost:8000.
+export const API_BASE: string = import.meta.env.VITE_API_BASE ?? "";
