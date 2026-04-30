@@ -560,9 +560,8 @@ def choose_ai_move(match_state: dict[str, Any]) -> tuple[dict[str, Any], dict[st
         )
         return mover, {"row": target_row, "col": target_col}, "AI advanced a piece."
 
-    attacker = random.choice(ai_pieces)
-    defender = random.choice(player_pieces)
-    return attacker, defender, "AI used a fallback valid move."
+    append_log(match_state, "AI had no legal adjacent attack or movement. Match state needs explicit stalemate handling.")
+    raise ValueError("AI has no legal moves.")
 
 
 def choose_ai_move_with_claude(match_state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | dict[str, int], str]:
@@ -831,7 +830,11 @@ def ai_move(match_id: str) -> dict[str, Any]:
     try:
         attacker, action_target, reasoning = choose_ai_move_with_claude(match_state)
     except Exception:
-        attacker, action_target, reasoning = choose_ai_move(match_state)
+        try:
+            attacker, action_target, reasoning = choose_ai_move(match_state)
+        except Exception:
+            end_match(match_state, "player", "Claude had no legal move available.")
+            return build_player_view(match_state)
 
     if isinstance(action_target, dict) and "row" in action_target and "col" in action_target:
         apply_move(match_state, attacker, int(action_target["row"]), int(action_target["col"]), "ai")

@@ -68,7 +68,8 @@ describe("App", () => {
     render(<App />);
 
     expect(screen.getByRole("heading", { name: /Flag hunts, decoys, and hidden weapons/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start Match" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Play 2 Players/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Play vs Claude/i })).toBeInTheDocument();
   });
 
   it("starts a match and renders hidden enemy information", async () => {
@@ -80,12 +81,15 @@ describe("App", () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await user.click(screen.getByRole("button", { name: /Play vs Claude/i }));
     await user.click(screen.getByRole("button", { name: "Start Match" }));
 
     expect(await screen.findByTestId("battle-board")).toBeInTheDocument();
     expect(screen.getByLabelText(/Rock flag/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Enemy silhouette/i)).toBeInTheDocument();
     expect(screen.getByTestId("debug-log-panel")).toHaveTextContent(/Match created/i);
+    expect(screen.getByText(/Blue cells:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Rose cells:/i)).toBeInTheDocument();
   });
 
   it("sends a player move after selecting a piece and an empty legal cell", async () => {
@@ -120,6 +124,7 @@ describe("App", () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await user.click(screen.getByRole("button", { name: /Play vs Claude/i }));
     await user.click(screen.getByRole("button", { name: "Start Match" }));
     await user.click(await screen.findByLabelText(/Rock flag/i));
     await user.click(screen.getByLabelText(/Empty cell row 2 col 1/i));
@@ -156,12 +161,61 @@ describe("App", () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await user.click(screen.getByRole("button", { name: /Play vs Claude/i }));
     await user.click(screen.getByRole("button", { name: "Start Match" }));
     await user.click(await screen.findByLabelText(/Paper/i));
     await user.click(screen.getByLabelText(/Enemy silhouette/i));
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/only duel an adjacent enemy/i)).toBeInTheDocument();
+    expect(screen.getByText(/Blocked: you can only duel an adjacent enemy target/i)).toBeInTheDocument();
+  });
+
+  it("shows reveal lock messaging during reveal", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () =>
+        matchView({
+          phase: "reveal",
+          message: "Memorize the enemy squad before the reveal timer ends.",
+        }),
+    } as Response);
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /Play vs Claude/i }));
+    await user.click(screen.getByRole("button", { name: "Start Match" }));
+
+    expect(await screen.findByText(/Board locked/i)).toBeInTheDocument();
+    expect(screen.getByText(/\ds left/i)).toBeInTheDocument();
+  });
+
+  it("marks adjacent enemies as legal duel targets after selecting a piece", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      json: async () =>
+        matchView({
+          board: [
+            piece("player-1", "player", 2, 3, {
+              label: "Paper",
+              weapon: "paper",
+              weaponIcon: "P",
+              silhouette: false,
+            }),
+            piece("ai-1", "ai", 3, 3, { silhouette: true }),
+          ],
+        }),
+    } as Response);
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /Play vs Claude/i }));
+    await user.click(screen.getByRole("button", { name: "Start Match" }));
+    await user.click(await screen.findByLabelText(/^Paper P$/i));
+
+    expect(screen.getByLabelText(/adjacent legal duel target/i)).toHaveAttribute("data-attackable", "true");
+    expect(screen.getByText("Legal duels")).toBeInTheDocument();
   });
 
   it("shows the moved piece in the new cell before the AI response arrives", async () => {
@@ -203,6 +257,7 @@ describe("App", () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await user.click(screen.getByRole("button", { name: /Play vs Claude/i }));
     await user.click(screen.getByRole("button", { name: "Start Match" }));
     await user.click(await screen.findByLabelText(/^Paper P$/i));
     await user.click(screen.getByLabelText(/Empty cell row 3 col 3/i));

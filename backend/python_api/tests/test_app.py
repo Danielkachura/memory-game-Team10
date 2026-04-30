@@ -142,6 +142,25 @@ class PythonApiTests(unittest.TestCase):
         self.assertEqual(payload["duel"]["attackerWeapon"], "paper")
         self.assertEqual(payload["duel"]["defenderWeapon"], "scissors")
 
+    def test_ai_without_legal_move_ends_match_instead_of_attacking_illegally(self) -> None:
+        create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()
+        match_id = create_payload["matchId"]
+        self.client.post(f"/api/match/{match_id}/reveal/complete", json={"confirmed": True})
+        match_state = battle_app.MATCHES[match_id]
+
+        match_state["phase"] = "ai_turn"
+        match_state["current_turn"] = "ai"
+
+        with patch("backend.python_api.app.choose_ai_move_with_claude", side_effect=ValueError("illegal ai output")):
+            with patch("backend.python_api.app.choose_ai_move", side_effect=ValueError("no legal fallback")):
+                response = self.client.post(f"/api/match/{match_id}/turn/ai-move")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["phase"], "finished")
+        self.assertEqual(payload["result"]["winner"], "player")
+        self.assertIn("no legal move", payload["result"]["reason"].lower())
+
 
 if __name__ == "__main__":
     unittest.main()

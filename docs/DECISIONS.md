@@ -1,7 +1,7 @@
 # Decision Log
-# Memory Game - Team 10
+# Squad RPS - Team 10
 
-Every non-obvious technical choice should be recorded here.
+Every non-obvious technical or product-facing implementation choice should be recorded here.
 
 ---
 
@@ -12,7 +12,7 @@ Every non-obvious technical choice should be recorded here.
 **Decided by:** Team 10
 
 **Context:**  
-The game is a browser-first interactive experience with no SSR requirement.
+The app is a browser-first interactive game with no SSR requirement.
 
 **Options Considered:**  
 1. Next.js  
@@ -23,29 +23,136 @@ The game is a browser-first interactive experience with no SSR requirement.
 React + Vite
 
 **Rationale:**  
-Fast local iteration, low setup overhead, and strong TypeScript support fit the hackathon MVP best.
+Fast iteration, low setup overhead, and straightforward TypeScript support fit the hackathon build best.
 
 ---
 
-## Decision: Client-side game state with server-side Claude proxy
+## Decision: Backend-authoritative gameplay state
 
-**Date:** 2026-04-28  
+**Date:** 2026-04-29  
 **Status:** Accepted  
 **Decided by:** Team 10
 
 **Context:**  
-The game rules are local UI logic, but Claude features require secure API key handling.
+Squad RPS includes hidden weapons, hidden roles, viewer-specific state, AI turns, and duel resolution. Client-side canonical state would make hidden-info leaks and rules drift too likely.
 
 **Options Considered:**  
-1. Full backend for all game state and AI calls  
-2. Client-side game state with server-side AI proxy  
-3. Pure frontend with browser-exposed API key
+1. Client-owned gameplay with a backend AI proxy  
+2. Backend-authoritative match state with a rendering client  
+3. Pure frontend gameplay with browser-exposed AI calls
 
 **Decision:**  
-Keep gameplay state in the frontend and send Claude requests through a secure server-side proxy.
+The Python backend owns authoritative gameplay state and the frontend renders backend-returned match views.
 
 **Rationale:**  
-This keeps the architecture small while preserving the security requirement that the key never reaches the browser.
+This is the only clean way to enforce hidden information, validate movement and attacks, and keep AI-visible state legal.
+
+---
+
+## Decision: Python + FastAPI backend
+
+**Date:** 2026-04-29  
+**Status:** Accepted  
+**Decided by:** Team 10
+
+**Context:**  
+The product pivot replaced the original lightweight proxy requirement with a real match service.
+
+**Options Considered:**  
+1. Keep a frontend-only game with minimal proxy  
+2. Node/Express match backend  
+3. Python + FastAPI match backend
+
+**Decision:**  
+Use Python + FastAPI in `backend/python_api/`.
+
+**Rationale:**  
+FastAPI keeps the backend small while still supporting validation, authoritative rules, and AI integration cleanly.
+
+---
+
+## Decision: Movement remains in the current MVP branch
+
+**Date:** 2026-04-29  
+**Status:** Accepted for current branch  
+**Decided by:** `[CTO]`
+
+**Context:**  
+The PRD contains an earlier recommendation to avoid movement for MVP, but the live app already implements adjacency-based movement and adjacent duels.
+
+**Options Considered:**  
+1. Remove movement and revert to direct attacks only  
+2. Keep movement and stabilize it for demo use
+
+**Decision:**  
+Keep movement in the current branch and prioritize correctness and readability.
+
+**Rationale:**  
+Removing movement now would create churn and destabilize the demo branch more than stabilizing the current rule set.
+
+---
+
+## Decision: Tie repicks must not mutate canonical weapons
+
+**Date:** 2026-04-29  
+**Status:** Accepted  
+**Decided by:** `[Tech Lead:backend]`
+
+**Context:**  
+Repick weapons are duel-local choices. Persisting them onto pieces changes future combat incorrectly and causes apparent rule violations.
+
+**Options Considered:**  
+1. Persist repick weapons onto pieces  
+2. Treat repick weapons as temporary duel-only values
+
+**Decision:**  
+Repick weapons are temporary and must not mutate a piece’s canonical weapon.
+
+**Rationale:**  
+This preserves the intended hidden-information model and prevents later duels from resolving against the wrong stored weapon.
+
+---
+
+## Decision: Dead pieces do not occupy rendered board cells
+
+**Date:** 2026-04-29  
+**Status:** Accepted  
+**Decided by:** `[Tech Lead:frontend]`
+
+**Context:**  
+Dead pieces may remain in payload history, but allowing them into the visible cell map can visually overwrite living pieces at the same coordinates.
+
+**Options Considered:**  
+1. Render all returned pieces into the board map  
+2. Render only alive pieces into occupied board cells
+
+**Decision:**  
+Only alive pieces occupy client-rendered board cells.
+
+**Rationale:**  
+This prevents the visual “piece switching” bug and matches actual gameplay state.
+
+---
+
+## Decision: Event log is a release tool, not optional debug garnish
+
+**Date:** 2026-04-29  
+**Status:** Accepted  
+**Decided by:** `[CTO]`, `[QA Lead]`
+
+**Context:**  
+The match has enough state transitions that live demo debugging becomes slow without engine-visible trace output.
+
+**Options Considered:**  
+1. Rely on console logging only  
+2. Expose backend-authored event log in the match view  
+3. No trace output in the UI
+
+**Decision:**  
+Expose a bounded backend-authored event log in the match payload and show it in the UI.
+
+**Rationale:**  
+This lets the team debug moves, attacks, ties, eliminations, and turn handoffs against the actual engine sequence.
 
 ---
 
@@ -56,7 +163,7 @@ This keeps the architecture small while preserving the security requirement that
 **Decided by:** Team 10
 
 **Context:**  
-The team needs fast feedback on logic and reliable browser-level verification.
+The project needs fast feedback and browser-level verification.
 
 **Options Considered:**  
 1. Jest + Cypress  
@@ -67,7 +174,7 @@ The team needs fast feedback on logic and reliable browser-level verification.
 Vitest + Testing Library + Playwright
 
 **Rationale:**  
-Vitest integrates cleanly with Vite, Testing Library fits component behavior testing, and Playwright covers end-to-end flow and screenshots.
+Vitest fits Vite well, Testing Library covers component behavior, and Playwright covers browser verification.
 
 ---
 
@@ -78,7 +185,7 @@ Vitest integrates cleanly with Vite, Testing Library fits component behavior tes
 **Decided by:** `[CTO]`
 
 **Context:**  
-The original scaffold defined only `[CTO]`, `[DEV]`, and `[QA]`. This project needs more explicit ownership to avoid fuzzy responsibility during a hackathon build.
+The project needs explicit ownership to avoid fuzzy responsibility during a hackathon build.
 
 **Options Considered:**  
 1. Keep only three broad roles  
@@ -86,51 +193,44 @@ The original scaffold defined only `[CTO]`, `[DEV]`, and `[QA]`. This project ne
 3. Organize only by frontend/backend without architecture and QA leadership
 
 **Decision:**  
-Use `[Architect]`, `[Tech Lead:frontend]`, `[Tech Lead:backend]`, `[QA Lead]`, and `[Security Reviewer]` under the CTO, with `[DEV:shared]`, `[DEV:frontend]`, and `[DEV:backend]` as implementation roles.
+Use `[Architect]`, `[UI/UX Lead]`, `[Tech Lead:frontend]`, `[Tech Lead:backend]`, `[QA Lead]`, and `[Security Reviewer]` under the CTO, with specialized DEV roles for implementation.
 
 **Rationale:**  
-This gives each critical area a clear owner while keeping the founder’s final authority unchanged.
+This gives each critical system and review area a clear owner while preserving founder authority.
 
 ---
 
-## Decision: Shared-types-first module boundaries
+## Decision: Graceful AI fallback is required
 
-**Date:** 2026-04-28  
-**Status:** Accepted  
-**Decided by:** `[Architect]`
-
-**Context:**  
-The game, AI, and proxy modules all depend on the same domain concepts and score rules.
-
-**Options Considered:**  
-1. Let each module define its own local types  
-2. Centralize canonical shared types and constants  
-3. Use runtime schemas only and infer all TS types
-
-**Decision:**  
-Create a shared frontend module for canonical types and constants, and keep proxy request validation separate on the backend.
-
-**Rationale:**  
-The game benefits from a single source of truth for core state while still allowing backend validation to remain explicit and security-focused.
-
----
-
-## Decision: Graceful AI degradation is a release gate
-
-**Date:** 2026-04-28  
+**Date:** 2026-04-29  
 **Status:** Accepted  
 **Decided by:** `[QA Lead]` and `[Security Reviewer]`
 
 **Context:**  
-Claude features are part of the demo, but the game must remain functional if the API is unavailable, slow, or rate-limited.
+Claude-backed squad generation and AI turns are part of the product, but the match must remain playable when the API is slow, invalid, or unavailable.
 
 **Options Considered:**  
-1. Fail the feature visibly and block gameplay  
-2. Use fallback content and continue play  
-3. Remove AI features from the MVP
+1. Fail hard and block the match  
+2. Fallback to backend-generated legal behavior  
+3. Remove Claude involvement from the MVP
 
 **Decision:**  
-All AI features must have fallback behavior within 8 seconds.
+All AI-dependent paths must fail safely to a legal backend fallback.
 
 **Rationale:**  
-This protects the demo and aligns with the PRD requirement that the game still plays without AI.
+This protects demo reliability without relaxing the hidden-state or legality rules.
+
+---
+
+## Open Decisions
+
+These are not yet fully settled and should be resolved explicitly:
+
+1. **Decoy stalemate policy**
+   Current question: what happens if only an invulnerable decoy remains?
+
+2. **Tie loop cap**
+   Current question: should repeated ties remain theoretically unbounded or be capped?
+
+3. **Reveal duration tuning**
+   Current question: keep 10 seconds or extend after playtesting?

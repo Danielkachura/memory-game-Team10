@@ -120,12 +120,14 @@ textarea {
 .difficulty-card,
 .primary-button,
 .secondary-button,
-.squad-cell {
+.squad-cell,
+.reveal-meter__fill {
   transition:
     transform 180ms ease,
     border-color 180ms ease,
     background 180ms ease,
-    box-shadow 180ms ease;
+    box-shadow 180ms ease,
+    width 180ms ease;
 }
 
 .difficulty-card {
@@ -204,7 +206,6 @@ textarea {
   margin-bottom: 20px;
 }
 
-/* Side-mounted HUD: a vertical column to the left of the centered board. */
 .match-shell {
   display: grid;
   grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
@@ -225,12 +226,29 @@ textarea {
 }
 
 .match-shell .battle-grid {
-  /* The board+sidebar live in the second column; keep the original 2-col layout inside it. */
   grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.7fr);
 }
 
 .hud-card {
+  position: relative;
+  overflow: hidden;
   padding: 18px 20px;
+}
+
+.hud-card::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--color-primary);
+}
+
+.hud-card--activeTurn::after {
+  background: var(--color-secondary);
+}
+
+.hud-card--reveal::after {
+  background: var(--color-warning);
 }
 
 .hud-card strong {
@@ -254,6 +272,79 @@ textarea {
   color: var(--color-primary);
 }
 
+.hud-message {
+  margin-bottom: 0;
+}
+
+.hud-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.hud-pill {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hud-pill--active {
+  border-color: rgba(125, 211, 252, 0.5);
+  background: rgba(125, 211, 252, 0.14);
+  color: var(--color-text);
+}
+
+.reveal-readout {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(253, 186, 116, 0.24);
+  background: rgba(253, 186, 116, 0.08);
+}
+
+.reveal-readout__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.reveal-readout__label {
+  color: var(--color-warning);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.reveal-readout__top strong {
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  line-height: 0.95;
+  color: var(--color-text);
+}
+
+.reveal-meter {
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.reveal-meter__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--color-warning), var(--color-secondary));
+}
+
 .battle-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.75fr);
@@ -262,6 +353,10 @@ textarea {
 
 .board-panel {
   padding: 18px;
+}
+
+.board-panel--locked {
+  box-shadow: inset 0 0 0 1px rgba(253, 230, 138, 0.16), 0 20px 50px rgba(0, 0, 0, 0.24);
 }
 
 .board-legend {
@@ -308,6 +403,25 @@ textarea {
   text-align: left;
 }
 
+.squad-cell__state {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.squad-cell__state--move {
+  background: rgba(125, 211, 252, 0.16);
+  color: var(--color-primary);
+}
+
 .squad-cell--player {
   background: linear-gradient(180deg, rgba(21, 40, 66, 0.98), rgba(13, 27, 43, 0.98));
 }
@@ -319,6 +433,19 @@ textarea {
 .squad-cell--selected {
   border-color: var(--color-secondary);
   box-shadow: 0 0 0 1px rgba(253, 230, 138, 0.2), 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+
+.squad-cell--attackTarget {
+  border-color: rgba(251, 113, 133, 0.72);
+  box-shadow: 0 0 0 1px rgba(251, 113, 133, 0.2), 0 12px 30px rgba(0, 0, 0, 0.25);
+  background:
+    radial-gradient(circle at top right, rgba(251, 113, 133, 0.24), transparent 55%),
+    linear-gradient(180deg, rgba(74, 20, 34, 0.92), rgba(25, 13, 22, 0.98));
+}
+
+.squad-cell--attackTarget .squad-cell__state {
+  background: rgba(251, 113, 133, 0.18);
+  color: #fecdd3;
 }
 
 .squad-cell--empty {
@@ -340,10 +467,6 @@ textarea {
   box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.16);
 }
 
-.squad-cell--emptyButton:disabled {
-  cursor: default;
-}
-
 .squad-cell:disabled {
   cursor: default;
   opacity: 0.7;
@@ -359,6 +482,12 @@ textarea {
   font-size: 0.78rem;
   color: var(--color-text-muted);
   line-height: 1.4;
+}
+
+.squad-cell__emptyHint {
+  margin-top: auto;
+  color: rgba(148, 163, 184, 0.66);
+  font-size: 0.78rem;
 }
 
 .squad-cell__name {
@@ -378,6 +507,45 @@ textarea {
   font-size: 2rem;
 }
 
+.board-status {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.board-status__headline {
+  margin: 0;
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.board-status__hint {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+}
+
+.action-feedback {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  background: rgba(125, 211, 252, 0.1);
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.action-feedback--warning {
+  border-color: rgba(251, 113, 133, 0.28);
+  background: rgba(251, 113, 133, 0.1);
+}
+
+.action-feedback--info {
+  border-color: rgba(125, 211, 252, 0.26);
+  background: rgba(125, 211, 252, 0.1);
+}
+
 .sidebar-stack {
   display: flex;
   flex-direction: column;
@@ -394,11 +562,183 @@ textarea {
   font-size: 1.35rem;
 }
 
+.brief-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.brief-status-card {
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.brief-status-card--move {
+  border-color: rgba(125, 211, 252, 0.28);
+  background: rgba(125, 211, 252, 0.08);
+}
+
+.brief-status-card--attack {
+  border-color: rgba(251, 113, 133, 0.28);
+  background: rgba(251, 113, 133, 0.08);
+}
+
+.brief-status-card__label {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.brief-status-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 1.6rem;
+  font-family: var(--font-heading);
+}
+
+.brief-status-card p {
+  margin: 8px 0 0;
+}
+
 .brief-list {
   margin: 12px 0 0;
   padding-left: 18px;
   color: var(--color-text-muted);
   line-height: 1.6;
+}
+
+.duel-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.duel-summary__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.duel-summary__result,
+.duel-summary__effect,
+.debug-log__badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.duel-summary__result--win {
+  background: rgba(134, 239, 172, 0.14);
+  color: var(--color-success);
+}
+
+.duel-summary__result--loss {
+  background: rgba(251, 113, 133, 0.14);
+  color: #fecdd3;
+}
+
+.duel-summary__result--tie,
+.duel-summary__effect {
+  background: rgba(253, 186, 116, 0.14);
+  color: var(--color-warning);
+}
+
+.duel-summary__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.duel-summary__combatant {
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.duel-summary__label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--color-text-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.duel-summary__combatant strong,
+.duel-summary__combatant p,
+.duel-summary__notes p {
+  margin: 0;
+}
+
+.duel-summary__combatant p {
+  margin-top: 8px;
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.duel-summary__versus {
+  align-self: center;
+  color: var(--color-text-muted);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.duel-summary__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.duel-summary--structured {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.duel-summary__row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.duel-summary__role {
+  color: var(--color-primary);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.duel-summary__outcome {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(134, 239, 172, 0.08);
+  color: var(--color-text);
+}
+
+.duel-summary__outcome--tie {
+  background: rgba(253, 186, 116, 0.08);
 }
 
 .debug-log {
@@ -417,6 +757,13 @@ textarea {
   background: rgba(255, 255, 255, 0.03);
 }
 
+.debug-log__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
 .debug-log__entry p {
   margin: 6px 0 0;
 }
@@ -426,6 +773,31 @@ textarea {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--color-primary);
+}
+
+.debug-log__badge {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-muted);
+}
+
+.debug-log__badge--move {
+  background: rgba(125, 211, 252, 0.14);
+  color: var(--color-primary);
+}
+
+.debug-log__badge--duel {
+  background: rgba(251, 113, 133, 0.14);
+  color: #fecdd3;
+}
+
+.debug-log__badge--reveal {
+  background: rgba(253, 186, 116, 0.14);
+  color: var(--color-warning);
+}
+
+.debug-log__badge--result {
+  background: rgba(134, 239, 172, 0.14);
+  color: var(--color-success);
 }
 
 .repick-row {
@@ -486,5 +858,24 @@ textarea {
 
   .header-actions {
     width: 100%;
+  }
+
+  .brief-status-grid,
+  .duel-summary__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .duel-summary__versus {
+    justify-self: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .difficulty-card,
+  .primary-button,
+  .secondary-button,
+  .squad-cell,
+  .reveal-meter__fill {
+    transition: none;
   }
 }

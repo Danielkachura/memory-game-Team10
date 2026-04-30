@@ -27,6 +27,11 @@ export interface VisiblePiece {
   silhouette: boolean;
 }
 
+interface ActionFeedback {
+  tone: "info" | "warning";
+  message: string;
+}
+
 interface DuelSummary {
   attackerId: string;
   attackerName: string;
@@ -120,6 +125,7 @@ export function useGame(options: UseGameOptions = {}) {
   const [selectedAttackerId, setSelectedAttackerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(null);
   const [revealSecondsLeft, setRevealSecondsLeft] = useState(0);
   const [revealArmed, setRevealArmed] = useState(false);
   const aiInFlightRef = useRef(false);
@@ -127,6 +133,19 @@ export function useGame(options: UseGameOptions = {}) {
 
   useEffect(() => {
     matchRef.current = match;
+  }, [match]);
+
+  useEffect(() => {
+    if (!match) {
+      setSelectedAttackerId(null);
+      setActionFeedback(null);
+      return;
+    }
+
+    if (match.phase !== "player_turn") {
+      setSelectedAttackerId(null);
+      setActionFeedback(null);
+    }
   }, [match]);
 
   useEffect(() => {
@@ -317,9 +336,82 @@ export function useGame(options: UseGameOptions = {}) {
     );
   }, [match, selectedAttackerId, viewerOwner, isMyTurn]);
 
+  const phaseLabel = useMemo(() => {
+    switch (match?.phase) {
+      case "reveal":
+        return "Weapon Reveal";
+      case "player_turn":
+        return isMyTurn ? "Player Turn" : "Opponent Turn";
+      case "ai_turn":
+        return "AI Turn";
+      case "repick":
+        return "Tie Repick";
+      case "finished":
+        return "Match Finished";
+      default:
+        return "Setup";
+    }
+  }, [match?.phase, isMyTurn]);
+
+  const turnLabel = useMemo(() => {
+    if (!match) {
+      return "Waiting";
+    }
+    if (match.phase === "reveal") {
+      return "Memorize the board";
+    }
+    if (match.phase === "finished") {
+      return "Match over";
+    }
+    if (match.phase === "ai_turn") {
+      return "Claude thinking";
+    }
+    if (match.phase === "repick") {
+      return "Choose your repick";
+    }
+    return isMyTurn ? "Your move" : "Opponent move";
+  }, [match, isMyTurn]);
+
+  const selectedPiece = useMemo(
+    () => match?.board.find((piece) => piece.id === selectedAttackerId) ?? null,
+    [match, selectedAttackerId],
+  );
+
+  const actionHint = useMemo(() => {
+    if (!match) {
+      return "Start a match to begin.";
+    }
+    if (match.phase === "reveal") {
+      return "Memorize enemy weapons before the countdown ends. The board is locked during reveal.";
+    }
+    if (match.phase === "ai_turn") {
+      return "Claude is resolving its turn. Wait for the board to update.";
+    }
+    if (match.phase === "repick") {
+      return "The duel tied. Pick a new weapon to continue the same clash.";
+    }
+    if (match.phase === "finished") {
+      return "Review the result, then start another match.";
+    }
+    if (!selectedPiece) {
+      return "Select one of your alive pieces. Front-row pieces can usually advance first.";
+    }
+    if (legalMoveTargets.size === 0 && legalAttackTargets.size === 0) {
+      return "This piece is blocked. Open a lane with a different piece or wait for the board to change.";
+    }
+    if (legalAttackTargets.size > 0 && legalMoveTargets.size > 0) {
+      return "This piece can either move into a highlighted blue cell or attack a highlighted enemy target.";
+    }
+    if (legalAttackTargets.size > 0) {
+      return "This piece has an adjacent enemy. Attack one of the highlighted enemy targets.";
+    }
+    return "This piece can move into one of the highlighted blue cells.";
+  }, [match, selectedPiece, legalMoveTargets, legalAttackTargets]);
+
   async function startMatch() {
     setLoading(true);
     setError(null);
+    setActionFeedback(null);
     setSelectedAttackerId(null);
     try {
       const created = await postJson<MatchView>("/api/match/create", { difficulty: selectedDifficulty }, token);
@@ -351,6 +443,7 @@ export function useGame(options: UseGameOptions = {}) {
     }
     setLoading(true);
     setError(null);
+    setActionFeedback(null);
     try {
       const next = await postJson<MatchView>(`/api/match/${current.matchId}/turn/player-attack`, {
         attackerId: selectedAttackerId,
@@ -372,6 +465,7 @@ export function useGame(options: UseGameOptions = {}) {
     }
     setLoading(true);
     setError(null);
+    setActionFeedback(null);
     try {
       const next = await postJson<MatchView>(`/api/match/${current.matchId}/turn/player-move`, {
         pieceId: selectedAttackerId,
@@ -394,6 +488,7 @@ export function useGame(options: UseGameOptions = {}) {
     }
     setLoading(true);
     setError(null);
+    setActionFeedback(null);
     try {
       const next = await postJson<MatchView>(`/api/match/${current.matchId}/turn/tie-repick`, { weapon }, token);
       setMatch(next);
@@ -409,28 +504,48 @@ export function useGame(options: UseGameOptions = {}) {
       return;
     }
     if (match.phase !== "player_turn" || !piece.alive || !isMyTurn) {
+      setActionFeedback({
+        tone: "warning",
+        message: match?.phase === "reveal" ? "Board locked during reveal. Memorize positions until the timer ends." : "Wait for your turn before acting.",
+      });
       return;
     }
     if (piece.owner === viewerOwner) {
       setSelectedAttackerId(piece.id);
       setError(null);
+      setActionFeedback(null);
       return;
     }
     if (piece.owner !== viewerOwner && selectedAttackerId) {
       if (!legalAttackTargets.has(piece.id)) {
-        setError("You can only duel an adjacent enemy.");
+        setActionFeedback({
+          tone: "warning",
+          message: "Blocked: you can only duel an adjacent enemy target.",
+        });
         return;
       }
       void attack(piece.id);
+      return;
     }
+    setActionFeedback({
+      tone: "info",
+      message: "Select one of your operatives first, then choose an adjacent enemy to duel.",
+    });
   }
 
   function onEmptyCellClick(row: number, col: number) {
     if (!selectedAttackerId || match?.phase !== "player_turn" || !isMyTurn) {
+      setActionFeedback({
+        tone: "info",
+        message: "Select one of your operatives to preview legal move lanes.",
+      });
       return;
     }
     if (!legalMoveTargets.has(`${row}-${col}`)) {
-      setError("You can only move to a highlighted adjacent empty square.");
+      setActionFeedback({
+        tone: "warning",
+        message: `Blocked: move only to a highlighted adjacent empty square, not R${row} C${col}.`,
+      });
       return;
     }
     void movePiece(row, col);
@@ -440,16 +555,20 @@ export function useGame(options: UseGameOptions = {}) {
     setMatch(null);
     setSelectedAttackerId(null);
     setError(null);
+    setActionFeedback(null);
     setLoading(false);
   }
 
   return {
+    actionFeedback,
     boardCells,
     difficulties: DIFFICULTIES,
     error,
+    actionHint,
     isMyTurn,
     loading,
     match,
+    phaseLabel,
     legalMoveTargets,
     legalAttackTargets,
     onEmptyCellClick,
@@ -457,10 +576,12 @@ export function useGame(options: UseGameOptions = {}) {
     resetToSetup,
     revealSecondsLeft,
     selectedAttackerId,
+    selectedPiece,
     selectedDifficulty,
     setSelectedDifficulty,
     startMatch,
     submitRepick,
+    turnLabel,
     viewerOwner,
   };
 }
