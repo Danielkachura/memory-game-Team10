@@ -88,12 +88,14 @@ const DIFFICULTIES: Array<{ id: Difficulty; label: string; detail: string }> = [
   { id: "hard", label: "Hard", detail: "AI pressures known favorable matchups." },
 ];
 
+import { API_BASE } from "../utils/apiBase";
+
 async function postJson<T>(url: string, body?: unknown, token?: string): Promise<T> {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (token) {
     headers["x-player-token"] = token;
   }
-  const response = await fetch(url, {
+  const response = await fetch(API_BASE + url, {
     method: "POST",
     headers,
     body: body === undefined ? "{}" : JSON.stringify(body),
@@ -110,7 +112,7 @@ async function getJson<T>(url: string, token?: string): Promise<T> {
   if (token) {
     headers["x-player-token"] = token;
   }
-  const response = await fetch(url, { method: "GET", headers });
+  const response = await fetch(API_BASE + url, { method: "GET", headers });
   if (!response.ok) {
     const fallback = await response.text();
     throw new Error(fallback || `Request failed with ${response.status}.`);

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Literal, Optional
 
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -28,6 +29,13 @@ from .schemas import (
 from .service import ClaudeProxyError, call_claude_text
 
 app = FastAPI(title="Squad RPS Python API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Path to the pre-built React frontend; resolved at module load time.
 _DIST = Path(__file__).resolve().parent.parent.parent / "dist"

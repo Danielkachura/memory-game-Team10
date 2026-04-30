@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API_BASE } from "../utils/apiBase";
 
 type Difficulty = "easy" | "medium" | "hard";
 
@@ -31,13 +32,13 @@ const DEFAULT_NAME_KEY = "squad-rps-display-name";
 async function postJson<T>(url: string, body: unknown, token?: string): Promise<T> {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (token) headers["x-player-token"] = token;
-  const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+  const response = await fetch(API_BASE + url, { method: "POST", headers, body: JSON.stringify(body) });
   if (!response.ok) throw new Error((await response.text()) || `Request failed (${response.status}).`);
   return response.json() as Promise<T>;
 }
 
 async function getJson<T>(url: string): Promise<T> {
-  const response = await fetch(url);
+  const response = await fetch(API_BASE + url);
   if (!response.ok) throw new Error((await response.text()) || `Request failed (${response.status}).`);
   return response.json() as Promise<T>;
 }

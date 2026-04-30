@@ -3,14 +3,12 @@
   "outputDirectory": "frontend/app/dist",
   "installCommand": "npm --prefix frontend/app install",
   "framework": null,
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "https://memory-game-team10-production.up.railway.app/api/:path*"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
+  "build": {
+    "env": {
+      "VITE_API_BASE": "https://memory-game-team10-production.up.railway.app"
     }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
