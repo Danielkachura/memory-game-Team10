@@ -1,0 +1,16 @@
+{
+  "buildCommand": "npm --prefix frontend/app run build",
+  "outputDirectory": "frontend/app/dist",
+  "installCommand": "npm --prefix frontend/app install",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://squad-rps-backend.up.railway.app/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
