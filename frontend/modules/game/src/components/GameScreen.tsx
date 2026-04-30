@@ -150,9 +150,16 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
                 </button>
               ))}
             </div>
-            <button type="button" className="primary-button" onClick={() => void startMatch()} disabled={loading}>
-              {loading ? "Generating squads..." : "Start Match"}
-            </button>
+            <div className="difficulty-list">
+              <button type="button" className="primary-button" onClick={() => void startMatch()} disabled={loading}>
+                {loading ? "Generating squads..." : "Start Match"}
+              </button>
+              {onExit ? (
+                <button type="button" className="secondary-button" onClick={onExit}>
+                  Back to home
+                </button>
+              ) : null}
+            </div>
             {error ? <p className="status-error">{error}</p> : null}
           </section>
         ) : (

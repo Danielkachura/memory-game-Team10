@@ -48,7 +48,6 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
     if (typeof window === "undefined") return "";
     return window.localStorage.getItem(DEFAULT_NAME_KEY) ?? "";
   });
-  const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [lobbies, setLobbies] = useState<LobbySummary[]>([]);
   const [pending, setPending] = useState<LobbyHandshake | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -129,7 +128,7 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
     try {
       const result = await postJson<LobbyHandshake>("/api/lobby/create", {
         displayName: displayName.trim(),
-        difficulty,
+        difficulty: "medium",
       });
       setPending(result);
     } catch (cause) {
@@ -227,25 +226,6 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
               }}
             />
           </label>
-
-          <div>
-            <p className="eyebrow" style={{ marginBottom: 8 }}>
-              Match difficulty (used by the squad generator)
-            </p>
-            <div className="difficulty-list">
-              {(["easy", "medium", "hard"] as const).map((id) => (
-                <button
-                  key={id}
-                  type="button"
-                  className={`difficulty-card ${difficulty === id ? "difficulty-card--active" : ""}`}
-                  onClick={() => setDifficulty(id)}
-                >
-                  <span>{id.charAt(0).toUpperCase() + id.slice(1)}</span>
-                  <small>Larger numbers don't change board size — the squad just gets a different flavor.</small>
-                </button>
-              ))}
-            </div>
-          </div>
 
           <div className="difficulty-list">
             <button
