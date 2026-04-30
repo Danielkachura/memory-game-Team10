@@ -77,7 +77,20 @@ def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def server_info() -> dict[str, Any]:
+    import socket as _socket
+    try:
+        with _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM) as _s:
+            _s.connect(("8.8.8.8", 80))
+            lan_ip = _s.getsockname()[0]
+    except Exception:
+        lan_ip = "127.0.0.1"
+    port = int(os.environ.get("PORT", "8000"))
+    return {"lanUrl": f"http://{lan_ip}:{port}"}
+
+
 app.add_api_route("/health", healthcheck, methods=["GET"])
+app.add_api_route("/api/server-info", server_info, methods=["GET"])
 
 
 def balanced_weapons() -> list[Weapon]:

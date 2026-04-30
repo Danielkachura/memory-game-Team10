@@ -52,12 +52,20 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
   const [pending, setPending] = useState<LobbyHandshake | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [lanUrl, setLanUrl] = useState<string>("");
 
   // Persist display name.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (displayName.trim()) window.localStorage.setItem(DEFAULT_NAME_KEY, displayName.trim());
   }, [displayName]);
+
+  // Fetch the server's LAN URL once on mount.
+  useEffect(() => {
+    getJson<{ lanUrl: string }>("/api/server-info")
+      .then((info) => setLanUrl(info.lanUrl))
+      .catch(() => setLanUrl(window.location.origin));
+  }, []);
 
   // Poll the open lobby list while we are browsing.
   useEffect(() => {
@@ -172,11 +180,11 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
             <p className="eyebrow">Lobby - waiting</p>
             <h1 className="hero-title">Waiting for a challenger…</h1>
             <p className="hero-copy">
-              Your lobby is open as <strong>{pending.displayName}</strong>. Share this URL with the
-              other player so they can join from another browser:
+              Your lobby is open as <strong>{pending.displayName}</strong>. Share this address with the
+              other player so they can join from their browser on the same network:
             </p>
-            <code style={{ background: "rgba(0,0,0,0.35)", padding: "8px 12px", borderRadius: 8 }}>
-              {typeof window !== "undefined" ? window.location.origin : ""}
+            <code style={{ background: "rgba(0,0,0,0.35)", padding: "8px 12px", borderRadius: 8, wordBreak: "break-all" }}>
+              {lanUrl || window.location.origin}
             </code>
             <div className="difficulty-list">
               <button type="button" className="secondary-button" onClick={cancelLobby}>
