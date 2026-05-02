@@ -47,6 +47,78 @@
   font-family: var(--font-body);
 }
 
+/* ── Ocean theme ── */
+[data-site-theme="blue"] {
+  --color-bg-glow-1: rgba(56, 189, 248, 0.12);
+  --color-bg-glow-2: rgba(56, 189, 248, 0.08);
+  --color-bg-glow-3: rgba(14, 40, 70, 0.4);
+  --color-bg: #0d1b2a;
+  --color-bg-accent: #1a3650;
+  --color-board-bg: #091524;
+  --color-board-border: rgba(56, 189, 248, 0.18);
+  --color-sidebar-bg: rgba(13, 27, 42, 0.95);
+  --color-surface: rgba(16, 36, 58, 0.88);
+  --color-surface-raised: rgba(28, 60, 90, 0.92);
+  --color-border: rgba(56, 189, 248, 0.12);
+  --color-primary: #38bdf8;
+  --color-primary-strong: #7dd3fc;
+  --color-secondary: #38bdf8;
+  --color-timer-fill: #38bdf8;
+  --color-timer-bg: rgba(56, 189, 248, 0.08);
+  --color-text: #e0f2fe;
+  --color-text-muted: #7eb8d4;
+  --color-surface-glow: rgba(56, 189, 248, 0.12);
+  --theme-accent: #38bdf8;
+}
+
+/* ── Ember theme (default warm tones) ── */
+[data-site-theme="ember"] {
+  --color-bg-glow-1: rgba(143, 215, 208, 0.12);
+  --color-bg-glow-2: rgba(240, 168, 91, 0.16);
+  --color-bg-glow-3: rgba(106, 49, 35, 0.3);
+  --color-bg: #1a1411;
+  --color-bg-accent: #3f221f;
+  --color-board-bg: #241915;
+  --color-board-border: rgba(255, 225, 185, 0.18);
+  --color-sidebar-bg: rgba(35, 21, 17, 0.92);
+  --color-surface: rgba(39, 25, 20, 0.84);
+  --color-surface-raised: rgba(76, 45, 33, 0.9);
+  --color-border: rgba(255, 225, 185, 0.12);
+  --color-primary: #8fd7d0;
+  --color-primary-strong: #b2efe8;
+  --color-secondary: #f2cf88;
+  --color-timer-fill: #f2cf88;
+  --color-timer-bg: rgba(255, 243, 214, 0.1);
+  --color-text: #fff4e4;
+  --color-text-muted: #d6bea5;
+  --color-surface-glow: rgba(255, 194, 120, 0.14);
+  --theme-accent: #f2cf88;
+}
+
+/* ── Midnight theme ── */
+[data-site-theme="midnight"] {
+  --color-bg-glow-1: rgba(167, 139, 250, 0.12);
+  --color-bg-glow-2: rgba(167, 139, 250, 0.08);
+  --color-bg-glow-3: rgba(30, 16, 60, 0.4);
+  --color-bg: #0b0a14;
+  --color-bg-accent: #1c1630;
+  --color-board-bg: #080710;
+  --color-board-border: rgba(167, 139, 250, 0.18);
+  --color-sidebar-bg: rgba(11, 10, 20, 0.95);
+  --color-surface: rgba(18, 14, 36, 0.88);
+  --color-surface-raised: rgba(38, 26, 70, 0.92);
+  --color-border: rgba(167, 139, 250, 0.12);
+  --color-primary: #a78bfa;
+  --color-primary-strong: #c4b5fd;
+  --color-secondary: #a78bfa;
+  --color-timer-fill: #a78bfa;
+  --color-timer-bg: rgba(167, 139, 250, 0.08);
+  --color-text: #ede9fe;
+  --color-text-muted: #a99ec0;
+  --color-surface-glow: rgba(167, 139, 250, 0.14);
+  --theme-accent: #a78bfa;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -61,10 +133,10 @@ body {
   margin: 0;
   min-width: 320px;
   background:
-    radial-gradient(circle at 18% 16%, rgba(143, 215, 208, 0.12), transparent 24%),
-    radial-gradient(circle at 80% 10%, rgba(240, 168, 91, 0.16), transparent 25%),
-    radial-gradient(circle at 50% 100%, rgba(106, 49, 35, 0.3), transparent 40%),
-    linear-gradient(180deg, #5f2d25 0%, #2d1a17 34%, #120d0b 100%);
+    radial-gradient(circle at 18% 16%, var(--color-bg-glow-1, rgba(143, 215, 208, 0.12)), transparent 24%),
+    radial-gradient(circle at 80% 10%, var(--color-bg-glow-2, rgba(240, 168, 91, 0.16)), transparent 25%),
+    radial-gradient(circle at 50% 100%, var(--color-bg-glow-3, rgba(106, 49, 35, 0.3)), transparent 40%),
+    linear-gradient(180deg, var(--color-bg-accent) 0%, var(--color-bg) 34%, var(--color-bg) 100%);
   color: var(--color-text);
 }
 
