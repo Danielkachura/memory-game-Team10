@@ -165,7 +165,7 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
         <header className="squad-header">
           <div>
             <p className="eyebrow">Squad RPS - Team 10</p>
-            <h1>Nati presentation with current match logic</h1>
+            <h1>Squad RPS</h1>
             <p className="hero-copy">
               {match.message} {isMyTurn ? "Act on your highlighted options." : "Wait for the board to hand back control."}
             </p>
