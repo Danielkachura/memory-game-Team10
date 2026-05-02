@@ -242,6 +242,7 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
               value={revealSeconds}
               onChange={(event) => setRevealSeconds(Number(event.target.value))}
               aria-label="Reveal time in seconds"
+              style={{ width: "160px", maxWidth: "100%", display: "block" }}
             />
           </label>
 

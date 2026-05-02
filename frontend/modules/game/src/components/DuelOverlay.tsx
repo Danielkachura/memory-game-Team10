@@ -15,11 +15,22 @@ interface DuelOverlayProps {
   onRepick?: (weapon: Weapon) => void;
 }
 
-const imgByWeapon: Record<Weapon, string> = {
-  rock: "/rock_nobg.png",
-  paper: "/paper_flat_nobg.png",
+const PLAYER_WEAPON_IMG: Record<Weapon, string> = {
+  rock: "/character_red_rock_nobg.png",
+  paper: "/character_red_paper_nobg.png",
   scissors: "/character_red_scissors_nobg.png",
 };
+
+const AI_WEAPON_IMG: Record<Weapon, string> = {
+  rock: "/rock_nobg.png",
+  paper: "/paper_flat_nobg.png",
+  scissors: "/character_blue_scissors_nobg.png",
+};
+
+function getWeaponImg(weapon: Weapon, unitId: string): string {
+  const owner = unitId.startsWith("player") ? "player" : "ai";
+  return owner === "player" ? PLAYER_WEAPON_IMG[weapon] : AI_WEAPON_IMG[weapon];
+}
 
 export function DuelOverlay({ duel, visible, repick, onRepick }: DuelOverlayProps) {
   if (!visible) return null;
@@ -41,9 +52,9 @@ export function DuelOverlay({ duel, visible, repick, onRepick }: DuelOverlayProp
     >
       <div style={{ fontFamily: "var(--font-heading)", fontSize: "2rem", color: "var(--color-secondary)" }}>DUEL</div>
       <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
-        <WeaponCard weapon={duel.attackerWeapon} label={duel.attackerName} />
+        <WeaponCard weapon={duel.attackerWeapon} unitId={duel.attackerId} label={duel.attackerName} />
         <div style={{ fontFamily: "var(--font-heading)", color: "var(--color-warning)", fontSize: "2rem" }}>{duel.winner === "tie" ? "=" : "VS"}</div>
-        <WeaponCard weapon={duel.defenderWeapon} label={duel.defenderName} />
+        <WeaponCard weapon={duel.defenderWeapon} unitId={duel.defenderId} label={duel.defenderName} />
       </div>
       {repick && onRepick ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
@@ -56,7 +67,7 @@ export function DuelOverlay({ duel, visible, repick, onRepick }: DuelOverlayProp
                 onClick={() => onRepick(weapon)}
                 style={{ border: "none", background: "transparent", cursor: "pointer" }}
               >
-                <WeaponCard weapon={weapon} label="" />
+                <WeaponCard weapon={weapon} unitId={duel.attackerId} label="" />
               </button>
             ))}
           </div>
@@ -66,10 +77,10 @@ export function DuelOverlay({ duel, visible, repick, onRepick }: DuelOverlayProp
   );
 }
 
-function WeaponCard({ weapon, label }: { weapon: Weapon; label: string }) {
+function WeaponCard({ weapon, unitId, label }: { weapon: Weapon; unitId: string; label: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", minWidth: "110px" }}>
-      <img src={imgByWeapon[weapon]} alt={weapon} style={{ width: "72px", height: "72px", objectFit: "contain" }} />
+      <img src={getWeaponImg(weapon, unitId)} alt={weapon} style={{ width: "72px", height: "72px", objectFit: "contain" }} />
       {label ? <div style={{ fontSize: "0.8rem" }}>{label}</div> : null}
     </div>
   );

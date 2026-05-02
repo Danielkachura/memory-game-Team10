@@ -327,7 +327,7 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
           </section>
 
           <aside className="panel nati-sidebar-shell">
-            <Sidebar phase={match.phase} revealTimer={revealSecondsLeft} stats={match.stats} match={match} difficulty={match.difficulty} />
+            <Sidebar phase={match.phase} revealTimer={revealSecondsLeft} stats={match.stats} match={match} difficulty={match.difficulty} viewerOwner={viewerOwner} />
           </aside>
         </section>
       </div>

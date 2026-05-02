@@ -21,10 +21,12 @@ export function RefereePanel({ phase, currentTurn, showDuel, result }: RefereePa
           width: "72px",
           height: "72px",
           borderRadius: "50%",
+          overflow: "hidden",
           backgroundImage: "url('/referee_flags_matrix.png')",
           backgroundSize: "300% 300%",
           backgroundPosition: showDuel ? "33.33% 0%" : currentTurn === "player" ? "0% 50%" : "33.33% 50%",
           filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.4))",
+          mixBlendMode: "multiply",
         }}
       />
       <span
