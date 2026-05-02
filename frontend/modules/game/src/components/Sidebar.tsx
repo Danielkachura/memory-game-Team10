@@ -61,7 +61,7 @@ export function Sidebar({ phase, revealTimer, stats, match, difficulty, viewerOw
         overflowY: "auto",
       }}
     >
-      <img src="/logo_rps_online_nobg.png" alt="RPS Online" style={{ width: "130px", objectFit: "contain" }} />
+      <img src="/character_red_kick_nobg.png" alt="Squad RPS" style={{ width: "130px", objectFit: "contain" }} />
 
       {isPvp ? (
         <div

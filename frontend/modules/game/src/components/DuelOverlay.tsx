@@ -18,7 +18,7 @@ interface DuelOverlayProps {
 const PLAYER_WEAPON_IMG: Record<Weapon, string> = {
   rock: "/character_red_rock_nobg.png",
   paper: "/character_red_paper_nobg.png",
-  scissors: "/character_red_kick_nobg.png",
+  scissors: "/logo_rps_online_nobg.png",
 };
 
 const AI_WEAPON_IMG: Record<Weapon, string> = {
