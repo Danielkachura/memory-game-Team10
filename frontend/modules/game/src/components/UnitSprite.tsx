@@ -12,8 +12,8 @@ interface UnitSpriteProps {
 
 const PLAYER_IMG: Record<string, string> = {
   rock: "/character_red_rock_nobg.png",
-  paper: "/character_red_scissors_nobg.png",
-  scissors: "/character_red_paper_nobg.png",
+  paper: "/character_red_paper_nobg.png",
+  scissors: "/character_red_kick_nobg.png",
   flag: "/character_red_flag_nobg.png",
   idle: "/character_red_idle_nobg.png",
 };
