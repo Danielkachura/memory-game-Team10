@@ -4,7 +4,7 @@ These rules apply to everything under `frontend/`.
 
 ## Scope
 
-Frontend code owns the playable Memory Game UI, setup flow, board interactions, and player-facing Claude features.
+Frontend code owns the playable Squad RPS UI, board interactions, and player-facing Claude features.
 
 ## Owner Tag
 

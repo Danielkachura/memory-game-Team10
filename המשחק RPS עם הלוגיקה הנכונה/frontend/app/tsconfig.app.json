@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@shared": ["../modules/shared/src/index.ts"],
+      "@shared/*": ["../modules/shared/src/*"],
+      "@game": ["../modules/game/src/index.ts"],
+      "@game/*": ["../modules/game/src/*"],
+      "@ui": ["../modules/ui/src/index.ts"],
+      "@ui/*": ["../modules/ui/src/*"],
+      "@ai": ["../modules/ai/src/index.ts"],
+      "@ai/*": ["../modules/ai/src/*"]
+    },
+    "types": ["vitest/globals", "@testing-library/jest-dom"]
+  },
+  "include": [
+    "src",
+    "../modules/ai/**/*.ts",
+    "../modules/ai/**/*.tsx",
+    "../modules/**/*.ts",
+    "../modules/**/*.tsx"
+  ],
+  "exclude": ["../modules/**/tests/**", "../../tests/**"]
+}

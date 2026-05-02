@@ -23,7 +23,16 @@
       "Bash(pwd)",
       "Bash(curl -s http://localhost:5173)",
       "Bash(curl -s -X POST http://127.0.0.1:8000/api/match/create -H \"Content-Type: application/json\" -d \"{\\\\\"difficulty\\\\\":\\\\\"medium\\\\\"}\")",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(Get-Process -Name node -ErrorAction SilentlyContinue)",
+      "Bash(Stop-Process -Force)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(powershell.exe -Command \"Get-Process -Name python* | Stop-Process -Force\")",
+      "Bash(uvicorn backend.python_api.app:app --host 127.0.0.1 --port 8000)",
+      "Bash(Get-ChildItem -Recurse -Force)",
+      "Bash(mkdir -p \"C:/Users/97252/Desktop/Projects/RPS-game-Team10/frontend/app/public/audio\")",
+      "Bash(cp \"C:/Users/97252/Desktop/Projects/RPS-game-Team10/assets/audio/\"* \"C:/Users/97252/Desktop/Projects/RPS-game-Team10/frontend/app/public/audio/\")",
+      "Bash(powershell *)"
     ],
     "deny": [
       "Bash(git push --force *)",

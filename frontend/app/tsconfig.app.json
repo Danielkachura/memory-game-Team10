@@ -17,24 +17,19 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@shared": ["../modules/shared/src/index.ts"],
-      "@shared/*": ["../modules/shared/src/*"],
-      "@game": ["../modules/game/src/index.ts"],
-      "@game/*": ["../modules/game/src/*"],
-      "@ui": ["../modules/ui/src/index.ts"],
-      "@ui/*": ["../modules/ui/src/*"],
-      "@ai": ["../modules/ai/src/index.ts"],
-      "@ai/*": ["../modules/ai/src/*"]
+      "@shared":    ["../modules/shared/src/index.ts"],
+      "@shared/*":  ["../modules/shared/src/*"],
+      "@game":      ["../modules/game/src/index.ts"],
+      "@game/*":    ["../modules/game/src/*"]
     },
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
   "include": [
     "src",
-    "../modules/ai/**/*.ts",
-    "../modules/ai/**/*.tsx",
-    "../modules/**/*.ts",
-    "../modules/**/*.tsx"
+    "../modules/shared/**/*.ts",
+    "../modules/shared/**/*.tsx",
+    "../modules/game/**/*.ts",
+    "../modules/game/**/*.tsx"
   ],
-  "exclude": ["../modules/**/tests/**", "../../tests/**"]
+  "exclude": ["node_modules", "dist", "../../tests/**"]
 }

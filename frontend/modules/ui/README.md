@@ -1,6 +1,10 @@
-# ui Module
+# UI Module
 
-Shared UI building blocks for the Memory Game.
+Shared UI building blocks for Squad RPS.
+- Button components
+- Panel components
+- Layout wrappers
+
 
 ## Owns
 - reusable buttons and badges

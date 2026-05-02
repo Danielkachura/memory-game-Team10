@@ -20,11 +20,11 @@ class RevealCompleteRequest(BaseModel):
     confirmed: bool = True
 
 
-class PlayerAttackRequest(BaseModel):
-    attacker_id: str = Field(alias="attackerId")
-    target_id: str = Field(alias="targetId")
+class PlayerMoveRequest(BaseModel):
+    piece_id: str = Field(alias="pieceId")
+    target_row: int = Field(alias="targetRow")
+    target_col: int = Field(alias="targetCol")
 
 
 class TieRepickRequest(BaseModel):
     weapon: Weapon
-

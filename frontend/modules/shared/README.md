@@ -1,6 +1,10 @@
-# shared Module
+# Shared Module
 
-Canonical shared domain contracts for the memory game.
+Canonical shared domain contracts for Squad RPS.
+- Weapon types (Rock, Paper, Scissors)
+- Role types (Flag, Decoy, Soldier)
+- Match view types
+
 
 ## Owns
 - game types

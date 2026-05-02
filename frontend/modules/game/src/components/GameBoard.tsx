@@ -1,35 +1,58 @@
-import type { Card, Difficulty } from "@shared";
-import { MemoryCard } from "./MemoryCard";
+import { BoardCell, Piece, Phase } from "@shared/types";
+import { BOARD_COLS } from "@shared/constants";
+import { BoardCellComponent } from "./BoardCell";
 
 interface GameBoardProps {
-  cards: Card[];
-  difficulty: Difficulty;
-  onFlip: (cardId: string) => void;
-  locked: boolean;
+  boardCells:      BoardCell[];
+  selectedPieceId: string | null;
+  validMoveSet:    Set<string>;
+  phase:           Phase;
+  dyingIds:        Set<string>;
+  movingPieceId:   string | null;
+  onPieceClick:    (piece: Piece) => void;
+  onCellClick:     (row: number, col: number) => void;
 }
 
-const GRID_CLASSES: Record<Difficulty, { columns: string; size: string }> = {
-  easy: { columns: "grid-cols-4", size: "h-[84px] w-[84px] sm:h-[100px] sm:w-[100px]" },
-  medium: { columns: "grid-cols-4", size: "h-[76px] w-[76px] sm:h-[90px] sm:w-[90px]" },
-  hard: { columns: "grid-cols-6", size: "h-[56px] w-[56px] sm:h-[80px] sm:w-[80px]" },
-};
-
-export function GameBoard({ cards, difficulty, onFlip, locked }: GameBoardProps) {
-  const grid = GRID_CLASSES[difficulty];
+export function GameBoard({
+  boardCells, selectedPieceId, validMoveSet, phase, dyingIds, movingPieceId, onPieceClick, onCellClick,
+}: GameBoardProps) {
+  const isReveal = phase === "reveal";
 
   return (
-    <section className="rounded-md border border-white/10 bg-surface p-lg">
-      <div className={`mx-auto grid w-fit ${grid.columns} gap-sm`}>
-        {cards.map((card) => (
-          <MemoryCard
-            key={card.id}
-            card={card}
-            onFlip={onFlip}
-            disabled={locked && !card.isFlipped}
-            sizeClassName={grid.size}
+    <div
+      data-testid="game-board"
+      style={{
+        display:             "inline-grid",
+        gridTemplateColumns: `repeat(${BOARD_COLS}, var(--cell-size))`,
+        gridTemplateRows:    "repeat(6, var(--cell-size))",
+        border:              "4px solid var(--color-board-border)",
+        boxShadow:           "0 6px 24px rgba(0,0,0,0.6)",
+      }}
+    >
+      {boardCells.map((cell) => {
+        const piece         = cell.piece;
+        const cellKey       = `${cell.row}-${cell.col}`;
+        const isSelected    = piece?.id === selectedPieceId;
+        const isValidMove   = validMoveSet.has(cellKey);
+        const isValidTarget = isValidMove && !!piece && piece.owner === "ai" && !!piece.alive;
+        const isDying       = piece ? dyingIds.has(piece.id) : false;
+        const isMoving      = piece ? piece.id === movingPieceId : false;
+
+        return (
+          <BoardCellComponent
+            key={cellKey}
+            cell={cell}
+            selected={isSelected}
+            isValidMove={isValidMove && !piece}
+            isValidTarget={isValidTarget}
+            isRevealPhase={isReveal}
+            isDying={isDying}
+            isMoving={isMoving}
+            onPieceClick={onPieceClick}
+            onCellClick={onCellClick}
           />
-        ))}
-      </div>
-    </section>
+        );
+      })}
+    </div>
   );
 }

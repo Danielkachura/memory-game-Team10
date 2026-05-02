@@ -1,6 +1,10 @@
-# ai Module
+# AI Module
 
-Claude-powered Memory Game features.
+Claude-powered Squad RPS features.
+- Squad generation
+- AI opponent move selection
+- End-game recap
+
 
 ## Owns
 - prompt builders

@@ -6,15 +6,13 @@ export default defineConfig({
     plugins: [react()],
     resolve: {
         alias: {
-            "@": path.resolve(__dirname, "src"),
             "@shared": path.resolve(__dirname, "../modules/shared/src"),
             "@game": path.resolve(__dirname, "../modules/game/src"),
-            "@ui": path.resolve(__dirname, "../modules/ui/src"),
-            "@ai": path.resolve(__dirname, "../modules/ai/src"),
         },
     },
     server: {
         port: 5173,
+        fs: { allow: ["..", "../..", "../../main_menu_asset.png"] },
         proxy: {
             "/api": {
                 target: (_a = process.env.VITE_BACKEND_URL) !== null && _a !== void 0 ? _a : "http://127.0.0.1:8000",
@@ -26,7 +24,18 @@ export default defineConfig({
         environment: "jsdom",
         globals: true,
         setupFiles: "./src/test/setup.ts",
-        include: ["./src/**/*.test.{ts,tsx}"],
+        coverage: {
+            provider: "v8",
+            reporter: ["text", "html", "clover", "json"],
+            thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
+            include: ["src/**/*.{ts,tsx}", "../modules/**/*.{ts,tsx}"],
+            exclude: ["**/*.test.{ts,tsx}", "**/test/setup.ts", "**/main.tsx"],
+            all: true,
+        },
+        include: [
+            "./src/**/*.test.{ts,tsx}",
+            "../modules/**/*.test.{ts,tsx}",
+        ],
         exclude: ["../../tests/e2e/**", "node_modules/**", "dist/**"],
     },
 });

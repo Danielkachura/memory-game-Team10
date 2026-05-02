@@ -1,14 +1,14 @@
-# Python API
+# Squad RPS Python API
 
-Python backend for the Memory Game Claude proxy.
+Python backend for the Squad RPS Claude proxy.
 
 ## Responsibilities
 
-- expose `POST /api/claude`
-- validate request payloads
-- enforce model and token limits server-side
-- call Anthropic with `ANTHROPIC_API_KEY`
-- return normalized JSON for the React frontend
+- secure proxy for Anthropic Claude API
+- source of truth for hidden game state (weapons, roles)
+- squad generation logic
+- AI opponent move selection logic
+- RPS duel resolution and hidden-info enforcement
 
 ## Local Run
 
@@ -30,5 +30,5 @@ Optional:
 
 ```bash
 ANTHROPIC_TIMEOUT_SECONDS=8
-ANTHROPIC_MODEL=claude-sonnet-4-20250514
+ANTHROPIC_MODEL=claude-sonnet-4-6
 ```

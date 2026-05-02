@@ -1,6 +1,11 @@
-# game Module
+# Game Module
 
-Core Memory Game gameplay module.
+Core Squad RPS gameplay module.
+- Board management (5x6)
+- Duel engine (RPS resolution)
+- Hidden-info state mapping
+- Turn orchestration (Reveal -> Player -> AI)
+
 
 ## Owns
 - game state transitions

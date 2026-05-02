@@ -1,388 +1,170 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* ============================================================
+   Squad RPS — Design System
+   Visual reference: RPS Online (original Flash game)
+   ============================================================ */
 
-:root {
-  --color-bg: #07111d;
-  --color-bg-accent: #132945;
-  --color-surface: rgba(14, 24, 38, 0.88);
-  --color-surface-raised: rgba(23, 40, 62, 0.96);
-  --color-border: rgba(255, 255, 255, 0.12);
-  --color-primary: #7dd3fc;
-  --color-primary-strong: #38bdf8;
-  --color-secondary: #fde68a;
-  --color-success: #86efac;
-  --color-warning: #fdba74;
-  --color-danger: #fb7185;
-  --color-text: #f8fafc;
-  --color-text-muted: #94a3b8;
-  --font-heading: "Space Grotesk", "Trebuchet MS", sans-serif;
-  --font-body: "Manrope", "Segoe UI", sans-serif;
-  color-scheme: dark;
-  font-family: var(--font-body);
-}
+/* ── Reset ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
 
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
+html, body, #root {
+  margin:  0;
+  padding: 0;
   min-height: 100%;
 }
 
+/* ── Design Tokens ──────────────────────────────────────────── */
+:root {
+  /* Board */
+  --color-board-light:   #8dc63f;
+  --color-board-dark:    #6daa2c;
+  --color-board-border:  #4a7a1e;
+  --color-board-bg:      #6daa2c;
+
+  /* Teams */
+  --color-player:        #cc2200;
+  --color-player-light:  #ff4422;
+  --color-cpu:           #1a44cc;
+  --color-cpu-light:     #3366ff;
+
+  /* Selection */
+  --color-selected:      #ffffff;
+  --color-valid-target:  #ffff44;
+
+  /* Special roles */
+  --color-flag:          #ffcc00;
+  --color-decoy:         #b060d0;
+
+  /* Outcome */
+  --color-success:       #44bb44;
+  --color-danger:        #cc0000;
+  --color-warning:       #ffaa00;
+
+  /* Sidebar */
+  --color-sidebar-bg:    #4a7a1e;
+  --color-logo-text:     #ccee22;
+  --color-timer-bg:      #3a6010;
+  --color-timer-fill:    #aaee22;
+
+  /* Text */
+  --color-text:          #ffffff;
+  --color-text-muted:    #ddeeaa;
+  --color-label-player:  #ff4422;
+  --color-label-cpu:     #4477ff;
+
+  /* Sizing */
+  --cell-size:       68px;
+  --unit-size:       56px;
+  --sidebar-width:   200px;
+
+  /* Spacing */
+  --space-xs:  6px;
+  --space-sm:  10px;
+  --space-md:  16px;
+  --space-lg:  24px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 10px;
+
+  /* Motion */
+  --motion-fast:   150ms;
+  --motion-medium: 300ms;
+  --motion-duel:  1000ms;
+  --motion-hide:   600ms;
+
+  /* Typography */
+  --font-heading: "Impact", "Arial Black", sans-serif;
+  --font-body:    "Arial Rounded MT Bold", "Arial", sans-serif;
+  --font-ui:      "Verdana", "Geneva", sans-serif;
+  --font-mono:    "Courier New", monospace;
+}
+
 body {
-  margin: 0;
-  min-width: 320px;
-  background:
-    radial-gradient(circle at 20% 20%, rgba(125, 211, 252, 0.14), transparent 25%),
-    radial-gradient(circle at 80% 0%, rgba(251, 113, 133, 0.14), transparent 22%),
-    linear-gradient(180deg, var(--color-bg-accent), var(--color-bg) 65%);
-  color: var(--color-text);
+  background:  var(--color-board-bg);
+  font-family: var(--font-ui);
+  color:       var(--color-text);
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
+/* ── Animations ─────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
-.squad-shell {
-  position: relative;
-  min-height: 100vh;
-  overflow: hidden;
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,68,0.6); }
+  50%       { box-shadow: 0 0 0 6px rgba(255,255,68,0); }
 }
 
-.squad-backdrop {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(135deg, rgba(125, 211, 252, 0.08), transparent 35%),
-    linear-gradient(225deg, rgba(251, 113, 133, 0.08), transparent 30%);
-  pointer-events: none;
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px); }
+  40%      { transform: translateX(6px); }
+  60%      { transform: translateX(-4px); }
+  80%      { transform: translateX(4px); }
 }
 
-.squad-layout {
-  position: relative;
-  z-index: 1;
-  width: min(1240px, calc(100vw - 32px));
-  margin: 0 auto;
-  padding: 32px 0 48px;
+@keyframes pop {
+  0%   { transform: scale(0.7); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
-.panel {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 24px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.24);
-  backdrop-filter: blur(18px);
+@keyframes targetPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(0.85); }
 }
 
-.setup-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding: 32px;
-  margin-top: 8vh;
+@keyframes unitDie {
+  0%   { opacity: 1; transform: scale(1) rotate(0deg); }
+  50%  { opacity: 0.5; transform: scale(1.2) rotate(15deg); }
+  100% { opacity: 0; transform: scale(0.4) rotate(-30deg); }
 }
 
-.eyebrow {
-  margin: 0;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: var(--color-primary);
+.piece-dying {
+  animation: unitDie 0.5s ease forwards;
 }
 
-.hero-title {
-  margin: 0;
-  font-family: var(--font-heading);
-  font-size: clamp(2.6rem, 7vw, 4.8rem);
-  line-height: 0.95;
+.duel-overlay {
+  animation: fadeIn 0.25s ease;
 }
 
-.hero-copy {
-  max-width: 760px;
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: 1.05rem;
-  line-height: 1.7;
+.game-over-overlay {
+  animation: pop 0.5s ease;
 }
 
-.difficulty-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
+/* ── Hero jump spritesheet — 3×2 grid, top row = idle / run / air ── */
+@keyframes heroJumpFrames {
+  0%   { background-position: 0%   0%; }
+  20%  { background-position: 50%  0%; }
+  50%  { background-position: 100% 0%; }
+  80%  { background-position: 50%  0%; }
+  100% { background-position: 0%   0%; }
 }
 
-.difficulty-card,
-.primary-button,
-.secondary-button,
-.squad-cell {
-  transition:
-    transform 180ms ease,
-    border-color 180ms ease,
-    background 180ms ease,
-    box-shadow 180ms ease;
+.hero-jump-sprite {
+  background-size:   300% 200%;
+  background-repeat: no-repeat;
+  animation: heroJumpFrames 0.5s ease;
 }
 
-.difficulty-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 18px 20px;
-  background: var(--color-surface-raised);
-  color: var(--color-text);
-  border: 1px solid transparent;
-  border-radius: 20px;
-  text-align: left;
-  cursor: pointer;
+/* ── Referee spritesheet — 4×3 grid ─────────────────────────────── */
+/* battle: alternate flags-spread ↔ flags-crossed */
+@keyframes refBattle {
+  0%,  49% { background-position: 33.33% 0%; }
+  50%, 100% { background-position: 0%    0%; }
 }
 
-.difficulty-card small {
-  color: var(--color-text-muted);
-  line-height: 1.5;
+/* win: sweep across row 0 frames */
+@keyframes refCheerSprite {
+  0%,  30% { background-position: 0%     0%; }
+  31%, 65% { background-position: 66.67% 0%; }
+  66%, 100%{ background-position: 0%     0%; }
 }
 
-.difficulty-card:hover,
-.difficulty-card--active {
-  transform: translateY(-2px);
-  border-color: rgba(125, 211, 252, 0.55);
-}
-
-.primary-button,
-.secondary-button {
-  border: 0;
-  border-radius: 999px;
-  padding: 14px 22px;
-  cursor: pointer;
-}
-
-.primary-button {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
-  color: #04131f;
-  font-weight: 800;
-}
-
-.secondary-button {
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-}
-
-.primary-button:hover,
-.secondary-button:hover,
-.squad-cell:hover {
-  transform: translateY(-1px);
-}
-
-.squad-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  align-items: end;
-  margin-bottom: 20px;
-}
-
-.squad-header h1 {
-  margin: 6px 0 0;
-  font-family: var(--font-heading);
-  font-size: clamp(2rem, 4vw, 3rem);
-}
-
-.header-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.hud-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.hud-card {
-  padding: 18px 20px;
-}
-
-.hud-card strong {
-  display: block;
-  margin-top: 4px;
-  font-size: 1.1rem;
-}
-
-.hud-card p,
-.duel-summary p,
-.result-panel p,
-.panel p {
-  color: var(--color-text-muted);
-  line-height: 1.6;
-}
-
-.hud-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: var(--color-primary);
-}
-
-.battle-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.75fr);
-  gap: 18px;
-}
-
-.board-panel {
-  padding: 18px;
-}
-
-.board-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 14px;
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-}
-
-.board-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.board-slot {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.board-slot__coords {
-  font-size: 0.7rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-}
-
-.squad-cell {
-  min-height: 108px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: start;
-  padding: 12px;
-  border-radius: 18px;
-  border: 1px solid var(--color-border);
-  background: rgba(17, 28, 43, 0.9);
-  color: var(--color-text);
-  cursor: pointer;
-  text-align: left;
-}
-
-.squad-cell--player {
-  background: linear-gradient(180deg, rgba(21, 40, 66, 0.98), rgba(13, 27, 43, 0.98));
-}
-
-.squad-cell--ai {
-  background: linear-gradient(180deg, rgba(56, 20, 34, 0.88), rgba(25, 13, 22, 0.98));
-}
-
-.squad-cell--selected {
-  border-color: var(--color-secondary);
-  box-shadow: 0 0 0 1px rgba(253, 230, 138, 0.2), 0 12px 30px rgba(0, 0, 0, 0.25);
-}
-
-.squad-cell--empty {
-  min-height: 108px;
-  border: 1px dashed rgba(255, 255, 255, 0.09);
-  border-radius: 18px;
-  background: rgba(6, 11, 18, 0.3);
-}
-
-.squad-cell:disabled {
-  cursor: default;
-  opacity: 0.7;
-}
-
-.squad-cell__name {
-  font-size: 0.93rem;
-  line-height: 1.35;
-}
-
-.squad-cell__meta {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  font-size: 1.15rem;
-}
-
-.sidebar-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.sidebar-stack .panel {
-  padding: 20px;
-}
-
-.sidebar-stack h2 {
-  margin: 0 0 12px;
-  font-family: var(--font-heading);
-  font-size: 1.35rem;
-}
-
-.brief-list {
-  margin: 12px 0 0;
-  padding-left: 18px;
-  color: var(--color-text-muted);
-  line-height: 1.6;
-}
-
-.repick-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.status-error {
-  margin-top: 16px;
-  color: var(--color-danger);
-}
-
-@media (max-width: 980px) {
-  .hud-grid,
-  .battle-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .squad-layout {
-    width: min(100vw - 20px, 1240px);
-    padding-top: 20px;
-  }
-}
-
-@media (max-width: 640px) {
-  .setup-panel,
-  .board-panel,
-  .sidebar-stack .panel {
-    padding: 16px;
-  }
-
-  .board-grid {
-    gap: 8px;
-  }
-
-  .squad-cell,
-  .squad-cell--empty {
-    min-height: 88px;
-    padding: 10px;
-  }
-
-  .header-actions {
-    width: 100%;
-  }
+.referee-sprite {
+  background-size:   400% 300%;
+  background-repeat: no-repeat;
+  background-image:  url('/referee_flags_matrix.png');
+  image-rendering:   pixelated;
 }

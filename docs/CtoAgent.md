@@ -1,14 +1,12 @@
 # CtoAgent
 
-The active ARIA-RPS command prompt lives at:
+הקובץ הראשי של ה-CTO נמצא ב:
 
-- `.claude/commands/CtoAgent.md`
+`.claude/commands/CtoAgent.md`
 
-Use that file as the single source of truth for UI-system-first planning and generation.
+סדר חובה לכל עבודת UI:
 
-Required order:
-
-1. `Step 1 -> Tokens`
-2. `Step 2 -> Components`
-3. `Step 3 -> State Map`
-4. `Step 4 -> UI`
+1. Step 1 → Tokens
+2. Step 2 → Components
+3. Step 3 → State Map
+4. Step 4 → UI

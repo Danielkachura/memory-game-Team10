@@ -1,47 +1,72 @@
-# UI Kit - Memory Game Design System
+# UI Kit — Squad RPS Design System
+# Visual Reference: RPS Online (original Flash game)
 
-Use this document as the source of truth for UI tokens and interaction rules.
+Use this document as the source of truth for all UI tokens, component rules, and interaction design.
 
 ---
 
 ## 1. Visual Direction
 
-The product should feel:
-- playful
-- polished enough for demo judging
-- readable under time pressure
-- slightly arcade-like without becoming noisy
+**Reference game:** RPS Online (original Flash game)
+The visual identity must match or closely echo the original:
+- Checkerboard green board (alternating light/dark green squares)
+- Warm olive/lime green for all backgrounds and surfaces
+- Blue team (CPU) on top rows — samurai-style characters with blue topknot
+- Red team (Player) on bottom rows — characters with red topknot
+- Weapons displayed as small icons ON the character sprites
+- Bold, chunky typography with yellow-green and red/blue player name labels
+- Right sidebar with RPS logo (yellow-green gradient text), a referee character, and a Yin-Yang timer
+- Characters are small sprite-style with expressive faces (not flat icons)
 
-Theme direction:
-- deep night-sky background
-- bright card faces and accent colors
-- clear match and mismatch feedback
+**Tone:** Arcade, fun, slightly retro. Not dark. Not corporate. Feels like a classic Flash game.
 
 ---
 
 ## 2. Color Tokens
 
+### Primary Palette (match RPS Online)
+
 | Token | Value | Usage |
 |---|---|---|
-| `--color-bg` | `#09111f` | page background |
-| `--color-bg-accent` | `#12233f` | gradient depth and large surfaces |
-| `--color-surface` | `#132033` | cards, panels, modal surfaces |
-| `--color-surface-raised` | `#1d2d45` | elevated card faces, controls |
-| `--color-primary` | `#4ecdc4` | primary actions, focus accents |
-| `--color-primary-strong` | `#14b8a6` | hover and active states |
-| `--color-secondary` | `#ffd166` | stars, celebratory highlights |
-| `--color-success` | `#7bd389` | matched state and success banners |
-| `--color-warning` | `#ffb703` | cautionary messaging |
-| `--color-danger` | `#ef476f` | API errors and mismatch feedback |
-| `--color-text` | `#f8fbff` | primary text |
-| `--color-text-muted` | `#a7b7cc` | secondary labels and helper copy |
-| `--color-card-back` | `#4ecdc4` | face-down cards |
-| `--color-card-face` | `#17304d` | face-up cards |
+| `--color-bg` | `#6daa2c` | outer page background — warm lime green |
+| `--color-board-light` | `#8dc63f` | board square — light checker cell |
+| `--color-board-dark` | `#6daa2c` | board square — dark checker cell |
+| `--color-board-border` | `#4a7a1e` | board outer border |
+| `--color-surface` | `#5a9020` | panels and sidebar background |
+| `--color-surface-raised` | `#4a7a1e` | elevated sidebar sections |
 
-Rules:
-- never hardcode hex values inside reusable components
-- expose tokens as CSS variables near the app root
-- use `--color-danger` sparingly so actual failures remain obvious
+### Team Colors
+
+| Token | Value | Usage |
+|---|---|---|
+| `--color-player` | `#cc2200` | Player (Red) team — units, name label, highlights |
+| `--color-player-light` | `#ff4422` | Player unit hover / selected |
+| `--color-cpu` | `#1a44cc` | CPU (Blue) team — units, name label, highlights |
+| `--color-cpu-light` | `#3366ff` | CPU unit hover |
+
+### Accent and UI
+
+| Token | Value | Usage |
+|---|---|---|
+| `--color-flag` | `#ffcc00` | Flag unit indicator — gold |
+| `--color-decoy` | `#b060d0` | Decoy unit indicator — purple |
+| `--color-selected` | `#ffffff` | Selection ring / highlight on active unit |
+| `--color-valid-target` | `#ffff44` | Highlight on valid attack targets |
+| `--color-danger` | `#cc0000` | Loss state, error messages |
+| `--color-success` | `#44bb44` | Win state |
+| `--color-warning` | `#ffaa00` | Tie repick prompt |
+| `--color-timer-bg` | `#3a6010` | Timer circle background |
+| `--color-timer-fill` | `#aaee22` | Timer circle fill |
+
+### Text
+
+| Token | Value | Usage |
+|---|---|---|
+| `--color-text` | `#ffffff` | Primary UI text |
+| `--color-text-muted` | `#ddeeaa` | Secondary labels and helper text |
+| `--color-label-player` | `#ff4422` | Player name label (red, bold) |
+| `--color-label-cpu` | `#2255ff` | CPU name label (blue, bold) |
+| `--color-logo-text` | `#ccee22` | RPS logo text (yellow-green gradient) |
 
 ---
 
@@ -49,92 +74,120 @@ Rules:
 
 | Token | Value | Usage |
 |---|---|---|
-| `--font-heading` | `"Space Grotesk", "Trebuchet MS", sans-serif` | title, modal headings |
-| `--font-body` | `"Manrope", "Segoe UI", sans-serif` | UI text |
-| `--font-emoji` | `"Apple Color Emoji", "Segoe UI Emoji", sans-serif` | emoji card content |
-| `--font-mono` | `"JetBrains Mono", "Consolas", monospace` | timer, dev/debug labels if shown |
+| `--font-heading` | `"Impact", "Arial Black", sans-serif` | RPS logo, win/loss screen titles |
+| `--font-body` | `"Arial Rounded MT Bold", "Arial", sans-serif` | Player names, labels, button text |
+| `--font-ui` | `"Verdana", "Geneva", sans-serif` | Phase messages, stats, tooltips |
+| `--font-mono` | `"Courier New", monospace` | Timer countdown |
 
-Scale:
-
-| Level | Size | Weight | Usage |
-|---|---|---|---|
-| `display` | `clamp(2.25rem, 5vw, 4rem)` | 700 | app title |
-| `h1` | `2rem` | 700 | win screen title |
-| `h2` | `1.5rem` | 700 | panel headings |
-| `body` | `1rem` | 500 | standard UI copy |
-| `small` | `0.875rem` | 500 | helper text, hints |
-| `card` | `2rem` | 600 | card face content |
+**Text sizes:**
+- Logo title: `48px`, bold, yellow-green with dark outline
+- Player name labels: `20px`, bold, in team color
+- Phase messages: `16px`
+- Stat values: `14px`
 
 ---
 
-## 4. Spacing and Radius
+## 4. Spacing and Sizing
 
-| Token | Value |
-|---|---|
-| `--space-2xs` | `4px` |
-| `--space-xs` | `8px` |
-| `--space-sm` | `12px` |
-| `--space-md` | `16px` |
-| `--space-lg` | `24px` |
-| `--space-xl` | `32px` |
-| `--space-2xl` | `48px` |
-| `--radius-sm` | `10px` |
-| `--radius-md` | `16px` |
-| `--radius-lg` | `24px` |
-
----
-
-## 5. Board Layout Rules
-
-| Difficulty | Grid | Card Size | Gap |
-|---|---|---|---|
-| `easy` | `4 x 3` | `100px` | `12px` |
-| `medium` | `4 x 4` | `90px` | `10px` |
-| `hard` | `6 x 4` | `80px` | `8px` |
-
-Responsive rules:
-- on narrow screens, allow the board to scale down without horizontal overflow
-- preserve tap targets at a usable size
-- keep setup controls above the board on mobile
+| Token | Value | Usage |
+|---|---|---|
+| `--cell-size` | `72px` | Board grid cell size (desktop) |
+| `--unit-size` | `60px` | Character sprite within cell |
+| `--board-gap` | `0px` | No gap between cells (flush grid) |
+| `--sidebar-width` | `220px` | Right sidebar width |
+| `--space-xs` | `6px` | Tight padding |
+| `--space-md` | `14px` | Standard padding |
+| `--space-lg` | `24px` | Section separation |
+| `--radius-sm` | `6px` | Button and badge radius |
+| `--radius-md` | `12px` | Panel radius |
 
 ---
 
-## 6. Components
+## 5. Board Layout
 
-### Cards
+```
+┌─────────────────────────────┬──────────────┐
+│ [CPU Name — Blue]           │  RPS LOGO    │
+│ ┌───────────────────────┐   │  (sidebar)   │
+│ │ CPU  CPU  CPU  CPU CPU │   │              │
+│ │ CPU  CPU  CPU  CPU CPU │   │ [Referee     │
+│ │ ·    ·    ·    ·   ·  │   │  character]  │
+│ │ ·    ·    ·    ·   ·  │   │              │
+│ │ P1   P1   P1   P1  P1 │   │ [Timer /     │
+│ │ P1   P1   P1   P1  P1 │   │  Yin-Yang]   │
+│ └───────────────────────┘   │              │
+│ [Player Name — Red]         │  [? button]  │
+└─────────────────────────────┴──────────────┘
+```
+
+- 5 columns × 6 rows
+- Rows 6–5: CPU (Blue) squad
+- Rows 4–3: Neutral battle zone (empty)
+- Rows 2–1: Player (Red) squad
+- Checker pattern: alternating `--color-board-light` / `--color-board-dark`
+- Board border: 4px solid `--color-board-border` with subtle drop shadow
+
+---
+
+## 6. Component Specs
+
+### BoardCell
+
 States:
+| State | Visual |
+|---|---|
+| `empty` | Checker square, no content |
+| `playerUnit` | Red character sprite with weapon icon overlay |
+| `cpuHidden` | Blue character sprite, no weapon shown (back turned or blank face) |
+| `cpuRevealed` | Blue character sprite with weapon icon — during duel or match end |
+| `selected` | White ring/glow around cell, slight scale-up (1.1×) |
+| `validTarget` | Yellow border pulse on cell |
+| `blocked` | Greyed out, no interaction |
 
-| State | Background | Border | Notes |
-|---|---|---|---|
-| Face-down | `--color-card-back` | none | content hidden |
-| Face-up | `--color-card-face` | `1px solid --color-surface-raised` | content visible |
-| Matched | `--color-card-face` | `2px solid --color-success` | subtle glow |
-| Mismatch | `--color-card-face` | `1px solid --color-danger` | brief feedback before flip-back |
+### Unit Sprite
 
-Rules:
-- use a 3D flip only if reduced motion is respected
-- matched cards must remain readable, not dimmed
-- disabled cards must still look intentional, not broken
+- Player units: red-toned character, small weapon icon in bottom-right corner
+- CPU units: blue-toned character, weapon hidden unless revealed
+- Flag unit: gold crown/badge on top of character
+- Decoy unit: purple diamond badge (only visible to owning player)
+- Dead unit: disappears with a brief shrink animation
 
-### Buttons
+### Sidebar
 
-| Variant | Background | Text | Border |
-|---|---|---|---|
-| Primary | `--color-primary` | `#06202a` | none |
-| Secondary | transparent | `--color-text` | `1px solid --color-primary` |
-| Tertiary | `--color-surface-raised` | `--color-text` | none |
-| Danger | `--color-danger` | white | none |
+Sections from top to bottom:
+1. **RPS Logo** — "RPS" in large yellow-green italic text + "Online" below in white
+2. **Referee character** — small decorative sprite (samurai referee)
+3. **Timer / Yin-Yang circle** — animated countdown, Yin-Yang symbol when idle
+4. **Help button** — `?` button at bottom
 
-### Panels
-- background: `--color-surface`
-- border: `1px solid rgba(255,255,255,0.08)`
-- radius: `--radius-md`
-- padding: `--space-lg`
+### Player Name Labels
 
-### Win Screen
-- should feel celebratory but not block readability
-- highlight stars and final stats first
-- recap text is secondary to score clarity
+- CPU name: displayed above board, bold, `--color-label-cpu`
+- Player name: displayed below board, bold, `--color-label-player`
+
+### Weapon Icons (on units)
+
+| Weapon | Icon |
+|---|---|
+| Rock | 🪨 or a grey stone sprite |
+| Paper | 📄 or a scroll/paper sprite |
+| Scissors | ✂️ or a golden scissors sprite |
+
+### Duel Overlay
+
+When a duel triggers:
+1. Two characters animate toward the center of the board
+2. Weapons shown large in the center (Paper / Rock / Scissors icons, ~80px)
+3. Result flashes: winner highlighted in green, loser fades out
+4. Returns to board state after ~1s
+
+### Game Over Screen
+
+- Full-board dark overlay
+- Large text: "YOU WIN!" (green) or "YOU LOSE!" (red) in Impact/bold
+- All hidden weapons and roles revealed on the board
+- Stats below: duration, duels won, duels lost, ties, Decoy absorptions
+- "Play Again" button — chunky, arcade style
 
 ---
 
@@ -142,33 +195,31 @@ Rules:
 
 | Motion | Duration | Notes |
 |---|---|---|
-| Card flip | `300ms` | ease-in-out |
-| Match pulse | `450ms` | subtle scale and glow |
-| Mismatch shake | `350ms` | horizontal shake before reset |
-| Panel reveal | `300ms` | fade and slight upward motion |
-| Win screen reveal | `400ms` | stronger than panel reveal |
-
-Rules:
-- honor `prefers-reduced-motion: reduce`
-- avoid constant idle animations
-- motion should clarify state changes, not decorate every element
+| Weapon hide (Phase 1→2) | `600ms` | Characters "turn around" or bring weapon behind back |
+| Duel animation | `1000ms` | Characters slide to center, weapons enlarge |
+| Unit death | `300ms` | Shrink + fade out |
+| Selected highlight | `150ms` | Ring appears instantly, slight pulse |
+| Valid target pulse | `400ms` loop | Yellow border pulses while attacker is selected |
+| Sidebar timer | per second | Countdown number ticks down |
 
 ---
 
-## 8. Accessibility Rules
+## 8. Required UI Sequence
 
-- all cards must be keyboard reachable
-- cards must expose state through `aria-label`
-- matched cards should be non-interactive and announce as matched
-- hint and new-game controls need visible focus states
-- color is not the only indicator of match or error state
-- modal or win screen should move focus when opened
+Before any screen is built, ARIA-RPS must complete all four steps in order:
+
+1. **Step 1 → Tokens** — colors, typography, spacing confirmed
+2. **Step 2 → Components** — all board cells, units, sidebar elements defined
+3. **Step 3 → State Map** — what is visible/clickable in each game phase
+4. **Step 4 → UI** — actual screen implementation
+
+Skipping any step makes the output invalid.
 
 ---
 
-## 9. Copy Guidelines
+## 9. Accessibility Rules
 
-- keep button labels short: `New Game`, `Hint`, `Play Again`
-- use encouraging copy, not overly childish copy
-- AI fallback messages should be honest and brief
-- avoid technical error jargon in player-facing UI
+- All board cells must be keyboard-reachable (tab order: left to right, top to bottom)
+- Units must expose state via `aria-label` (e.g., "Your Scissors unit, row 2 column 3")
+- Selected and valid-target states must have visible non-color indicators (ring, border)
+- Contrast ratios must pass WCAG AA for all text on game backgrounds
