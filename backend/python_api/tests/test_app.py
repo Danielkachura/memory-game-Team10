@@ -107,6 +107,26 @@ class PythonApiTests(unittest.TestCase):
         self.assertEqual((moved_piece["row"], moved_piece["col"]), (3, 1))
         self.assertTrue(any("Move:" in entry["message"] for entry in payload["eventLog"]))
 
+    def test_player_move_into_enemy_square_is_rejected(self) -> None:
+        create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()
+        match_id = create_payload["matchId"]
+        self.client.post(f"/api/match/{match_id}/reveal/complete", json={"confirmed": True})
+        match_state = battle_app.MATCHES[match_id]
+
+        player_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "player")
+        ai_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "ai")
+        player_piece["row"] = 3
+        player_piece["col"] = 3
+        ai_piece["row"] = 4
+        ai_piece["col"] = 3
+        response = self.client.post(
+            f"/api/match/{match_id}/turn/player-move",
+            json={"pieceId": player_piece["id"], "targetRow": 4, "targetCol": 3},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("occupied", response.text.lower())
+
     def test_tie_repick_does_not_change_canonical_weapons(self) -> None:
         create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()
         match_id = create_payload["matchId"]

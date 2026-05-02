@@ -234,3 +234,30 @@ These are not yet fully settled and should be resolved explicitly:
 
 3. **Reveal duration tuning**
    Current question: keep 10 seconds or extend after playtesting?
+
+---
+
+## Decision: `origin/Nati-Features` is the presentation baseline for the integrated app
+
+**Date:** 2026-05-02  
+**Status:** Accepted  
+**Decided by:** `[CTO]`
+
+**Context:**  
+The current integration branch already contains the valuable systems work that Nati's branch does not: backend-authoritative match flow, PVP lobby/match support, Vercel to Railway deployment wiring, and the current VS AI runtime path. But it also replaced Nati's art-driven board presentation, duel overlay, referee presentation, audio flow, and public assets with a more utilitarian shell.
+
+**Options Considered:**  
+1. Keep the current integration branch UI as the main baseline and selectively copy small art pieces from Nati  
+2. Reset to `origin/Nati-Features` and re-port all gameplay and deployment systems onto it  
+3. Treat `origin/Nati-Features` as the presentation baseline while preserving the current integration branch for game rules, PVP/VS AI flow, and deployment wiring
+
+**Decision:**  
+Use `origin/Nati-Features` as the UI/UX and asset baseline. Preserve the current integration branch for:
+- backend-authoritative gameplay and tests
+- PVP lobby plus attached-match flow
+- VS AI flow
+- Vercel and Railway deployment logic
+- current API-base wiring and backend fixes
+
+**Rationale:**  
+This keeps the strongest visual shell already built by Nati while avoiding a risky rollback of working gameplay and deployment systems. The integration work should restore presentation files onto the current architecture, not reintroduce old client-owned rules or remove the deployment fixes.

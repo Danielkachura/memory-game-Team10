@@ -1,421 +1,337 @@
-import { useGame, type UseGameOptions } from "../hooks/useGame";
-
-const weaponButtons: Array<{ id: "rock" | "paper" | "scissors"; icon: string; label: string }> = [
-  { id: "rock", icon: "R", label: "Rock" },
-  { id: "paper", icon: "P", label: "Paper" },
-  { id: "scissors", icon: "S", label: "Scissors" },
-];
-
-function PieceButton({
-  piece,
-  attackable,
-  selected,
-  onClick,
-}: {
-  piece: {
-    id: string;
-    owner: "player" | "ai";
-    alive: boolean;
-    label: string;
-    weaponIcon: string | null;
-    roleIcon: string | null;
-    silhouette: boolean;
-  } | null;
-  attackable: boolean;
-  selected: boolean;
-  onClick: () => void;
-}) {
-  if (!piece) {
-    return <div className="squad-cell squad-cell--empty" aria-hidden="true" />;
-  }
-
-  const label = piece.silhouette
-    ? `${piece.owner === "ai" ? "Enemy" : "Ally"} silhouette`
-    : `${piece.label} ${piece.weaponIcon ?? ""}`.trim();
-  const stateLabel =
-    selected ? " Selected operative." : attackable ? " Adjacent legal duel target." : "";
-
-  return (
-    <button
-      type="button"
-      className={`squad-cell ${piece.owner === "player" ? "squad-cell--player" : "squad-cell--ai"} ${selected ? "squad-cell--selected" : ""} ${attackable ? "squad-cell--attackTarget" : ""}`}
-      onClick={onClick}
-      disabled={!piece.alive}
-      aria-label={`${label}${stateLabel}`}
-      data-piece-owner={piece.owner}
-      data-piece-id={piece.id}
-      data-attackable={attackable ? "true" : "false"}
-    >
-      <span className="squad-cell__state">
-        {selected ? "Selected" : attackable ? "Duel" : piece.owner === "player" ? "Your unit" : "Hidden enemy"}
-      </span>
-      <span className="squad-cell__name">{piece.label}</span>
-      <span className="squad-cell__meta">
-        {piece.roleIcon ? <span>{piece.roleIcon}</span> : null}
-        {piece.weaponIcon ? <span>{piece.weaponIcon}</span> : piece.silhouette ? <span>?</span> : null}
-      </span>
-    </button>
-  );
-}
-
-function formatPhaseLabel(phase: string) {
-  return phase
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function getDebugTone(message: string) {
-  const normalized = message.toLowerCase();
-  if (normalized.includes("duel") || normalized.includes("tie")) return "debug-log__badge debug-log__badge--duel";
-  if (normalized.includes("move")) return "debug-log__badge debug-log__badge--move";
-  if (normalized.includes("reveal")) return "debug-log__badge debug-log__badge--reveal";
-  if (normalized.includes("flag") || normalized.includes("win") || normalized.includes("lose")) {
-    return "debug-log__badge debug-log__badge--result";
-  }
-  return "debug-log__badge";
-}
-
-function getDebugLabel(message: string) {
-  const normalized = message.toLowerCase();
-  if (normalized.includes("duel")) return "Duel";
-  if (normalized.includes("tie")) return "Tie";
-  if (normalized.includes("move")) return "Move";
-  if (normalized.includes("reveal")) return "Reveal";
-  if (normalized.includes("flag")) return "Flag";
-  return "Log";
-}
+import { useEffect, useMemo, useState } from "react";
+import { DuelOverlay } from "./DuelOverlay";
+import { PlayerNameLabel } from "./PlayerNameLabel";
+import { RefereePanel } from "./RefereePanel";
+import { SettingsPanel } from "./SettingsPanel";
+import { Sidebar } from "./Sidebar";
+import { StartScreen } from "./StartScreen";
+import { UnitSprite } from "./UnitSprite";
+import { useAudio } from "../hooks/useAudio";
+import { useGame, type MatchView, type UseGameOptions } from "../hooks/useGame";
 
 interface GameScreenProps extends UseGameOptions {
   onExit?: () => void;
 }
 
+const DEBUG_LOG_STORAGE_KEY = "squad-rps-show-debug-log";
+
+function buildDuelKey(match: MatchView | null) {
+  if (!match?.duel) return null;
+  const duel = match.duel;
+  return [
+    match.matchId,
+    match.phase,
+    duel.attackerId,
+    duel.defenderId,
+    duel.attackerWeapon,
+    duel.defenderWeapon,
+    duel.winner,
+    duel.revealedRole ?? "",
+  ].join("|");
+}
+
 export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
   const {
     actionFeedback,
+    actionHint,
     boardCells,
     difficulties,
     error,
+    isMyTurn,
     legalAttackTargets,
     legalMoveTargets,
     loading,
     match,
     onEmptyCellClick,
     onPieceClick,
-    resetToSetup,
     revealSecondsLeft,
     selectedAttackerId,
+    selectedPiece,
     selectedDifficulty,
     setSelectedDifficulty,
     startMatch,
     submitRepick,
+    turnLabel,
+    viewerOwner,
   } = useGame({ initialMatchId, token });
+  const [visibleDuelKey, setVisibleDuelKey] = useState<string | null>(null);
+  const [showDebugLog, setShowDebugLog] = useState<boolean>(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+    return window.localStorage.getItem(DEBUG_LOG_STORAGE_KEY) !== "false";
+  });
 
-  const selectedAttacker = match?.board.find((piece) => piece.id === selectedAttackerId) ?? null;
-  const hasLegalMoveTargets = legalMoveTargets.size > 0;
-  const hasLegalAttackTargets = legalAttackTargets.size > 0;
-  const phaseLabel = match ? formatPhaseLabel(match.phase) : "";
-  const turnLabel = match
-    ? match.currentTurn === "player"
-      ? "Your turn"
-      : match.currentTurn === "ai"
-        ? "Claude thinking"
-        : "Match over"
-    : "";
-  const revealProgress = match?.phase === "reveal" ? Math.max(0, Math.min(100, (revealSecondsLeft / 10) * 100)) : 0;
+  const duelKey = useMemo(() => buildDuelKey(match), [match]);
+  const duelVisible = Boolean(match?.duel && visibleDuelKey && duelKey === visibleDuelKey);
+  const topLabel = match?.players?.ai ?? (match?.mode === "pvp" ? "Blue Squad" : "Claude");
+  const bottomLabel = match?.players?.player ?? "Red Squad";
   const boardStatus = actionFeedback ?? (error ? { tone: "warning" as const, message: error } : null);
+  const attachedMatch = Boolean(initialMatchId && token);
+  const viewerRepickRole =
+    match?.phase === "repick" && match.duel
+      ? match.duel.attackerId.startsWith(viewerOwner) ? "attacker" : "defender"
+      : null;
+  const waitingForOpponentRepick =
+    match?.phase === "repick" &&
+    match.mode === "pvp" &&
+    Boolean(
+      viewerRepickRole &&
+        match.repick?.picksReceived?.includes(viewerRepickRole) &&
+        (match.repick?.picksReceived?.length ?? 0) < 2,
+    );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(DEBUG_LOG_STORAGE_KEY, String(showDebugLog));
+  }, [showDebugLog]);
+
+  useEffect(() => {
+    if (!match?.duel || !duelKey) {
+      setVisibleDuelKey(null);
+      return;
+    }
+
+    if (waitingForOpponentRepick) {
+      setVisibleDuelKey(null);
+      return;
+    }
+
+    setVisibleDuelKey(duelKey);
+    if (match.phase === "repick") {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setVisibleDuelKey((current) => (current === duelKey ? null : current));
+    }, 1800);
+
+    return () => window.clearTimeout(timeout);
+  }, [duelKey, match?.duel, match?.phase, waitingForOpponentRepick]);
+
+  useAudio(
+    match
+      ? {
+          phase: match.phase,
+          currentTurn: match.currentTurn,
+          duel: match.duel,
+          result: match.result,
+          showDuel: duelVisible,
+        }
+      : null,
+  );
+
+  if (!match && !attachedMatch) {
+    return (
+      <StartScreen
+        difficulties={difficulties}
+        selected={selectedDifficulty}
+        onSelect={setSelectedDifficulty}
+        onStart={() => void startMatch()}
+        loading={loading}
+        onBack={onExit}
+      />
+    );
+  }
+
+  if (!match) {
+    return (
+      <main className="squad-shell">
+        <div className="squad-backdrop" />
+        <div className="squad-layout">
+          <section className="panel setup-panel">
+            <p className="eyebrow">Connecting</p>
+            <h1 className="hero-title">Loading match state...</h1>
+            <p className="hero-copy">Waiting for the current lobby match to load from the backend.</p>
+            {error ? <p className="status-error">{error}</p> : null}
+            {onExit ? (
+              <div className="difficulty-list">
+                <button type="button" className="secondary-button" onClick={onExit}>
+                  Back
+                </button>
+              </div>
+            ) : null}
+          </section>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="squad-shell">
       <div className="squad-backdrop" />
-      <div className="squad-layout">
-        {!match ? (
-          <section className="panel setup-panel">
+      <div className="squad-layout squad-layout--boarded">
+        <header className="squad-header">
+          <div>
             <p className="eyebrow">Squad RPS - Team 10</p>
-            <h1 className="hero-title">Flag hunts, decoys, and hidden weapons.</h1>
+            <h1>Nati presentation with current match logic</h1>
             <p className="hero-copy">
-              Memorize the enemy squad during the reveal, then duel your way to the hidden flag-bearer
-              before Claude finds yours.
+              {match.message} {isMyTurn ? "Act on your highlighted options." : "Wait for the board to hand back control."}
             </p>
-            <div className="difficulty-list">
-              {difficulties.map((difficulty) => (
-                <button
-                  key={difficulty.id}
-                  type="button"
-                  className={`difficulty-card ${selectedDifficulty === difficulty.id ? "difficulty-card--active" : ""}`}
-                  onClick={() => setSelectedDifficulty(difficulty.id)}
-                >
-                  <span>{difficulty.label}</span>
-                  <small>{difficulty.detail}</small>
-                </button>
-              ))}
-            </div>
-            <div className="difficulty-list">
-              <button type="button" className="primary-button" onClick={() => void startMatch()} disabled={loading}>
-                {loading ? "Generating squads..." : "Start Match"}
+          </div>
+          {onExit ? (
+            <div className="header-actions">
+              <SettingsPanel showDebugLog={showDebugLog} onShowDebugLogChange={setShowDebugLog} />
+              <button type="button" className="secondary-button" onClick={onExit}>
+                Back
               </button>
-              {onExit ? (
-                <button type="button" className="secondary-button" onClick={onExit}>
-                  Back to home
-                </button>
+            </div>
+          ) : (
+            <div className="header-actions">
+              <SettingsPanel showDebugLog={showDebugLog} onShowDebugLogChange={setShowDebugLog} />
+            </div>
+          )}
+        </header>
+
+        <section className="nati-match-layout">
+          <section className="panel nati-board-panel">
+            <div className="nati-board-header">
+              <div>
+                <span className="hud-label">Phase</span>
+                <strong>{match.phase.replace(/_/g, " ")}</strong>
+              </div>
+              <div>
+                <span className="hud-label">Turn</span>
+                <strong>{turnLabel}</strong>
+              </div>
+              <RefereePanel phase={match.phase} currentTurn={match.currentTurn} showDuel={duelVisible} result={match.result} />
+            </div>
+
+            <PlayerNameLabel name={topLabel} team="cpu" />
+
+            <div className="board-legend">
+              <span><strong>Blue cells:</strong> legal move</span>
+              <span><strong>Rose cells:</strong> legal duel</span>
+            </div>
+
+            {match.phase === "reveal" ? (
+              <>
+                <p className="board-status__headline">Board locked during reveal.</p>
+                <p className="board-status__hint">{revealSecondsLeft}s left</p>
+              </>
+            ) : null}
+
+            <div className="nati-board-stage">
+              <div className="nati-board-grid" data-testid="battle-board">
+                {boardCells.map((cell) => {
+                  const moveTarget = legalMoveTargets.has(`${cell.row}-${cell.col}`);
+                  const attackTarget = cell.piece ? legalAttackTargets.has(cell.piece.id) : false;
+                  const selected = cell.piece?.id === selectedAttackerId;
+                  const ownerTone =
+                    cell.row >= 5 ? "nati-board-cell--aiZone" : cell.row <= 2 ? "nati-board-cell--playerZone" : "nati-board-cell--neutralZone";
+
+                  return (
+                    <div
+                      key={`${cell.row}-${cell.col}`}
+                      className={`nati-board-cell ${ownerTone} ${moveTarget ? "nati-board-cell--move" : ""} ${attackTarget ? "nati-board-cell--attack" : ""}`}
+                    >
+                      <span className="nati-board-cell__coords">{`R${cell.row} C${cell.col}`}</span>
+                      {cell.piece ? (
+                        <>
+                          <UnitSprite
+                            piece={cell.piece}
+                            selected={selected}
+                            isValidTarget={attackTarget}
+                            isRevealPhase={match.phase === "reveal"}
+                            isDying={false}
+                            isMoving={false}
+                            onClick={() => onPieceClick(cell.piece!)}
+                          />
+                          <span className="nati-piece-label">{cell.piece.silhouette ? "Enemy silhouette" : cell.piece.label}</span>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className={`nati-empty-target ${moveTarget ? "nati-empty-target--active" : ""}`}
+                          aria-label={`Empty cell row ${cell.row} col ${cell.col}`}
+                          onClick={() => onEmptyCellClick(cell.row, cell.col)}
+                        >
+                          {moveTarget ? "Move" : ""}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {match.duel ? (
+                <DuelOverlay
+                  duel={match.duel}
+                  visible={duelVisible}
+                  repick={match.phase === "repick"}
+                  repickLocked={loading}
+                  onRepick={match.phase === "repick" ? (weapon) => void submitRepick(weapon) : undefined}
+                />
               ) : null}
             </div>
-            {error ? <p className="status-error">{error}</p> : null}
-          </section>
-        ) : (
-          <>
-            <header className="squad-header">
-              <div>
-                <p className="eyebrow">Squad RPS - Team 10</p>
-                <h1>5 x 6 hidden-info squad battle</h1>
-              </div>
-              <div className="header-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => {
-                    resetToSetup();
-                    onExit?.();
-                  }}
-                >
-                  Back To Setup
-                </button>
-              </div>
-            </header>
 
-            <section className="match-shell">
-              <aside className="hud-aside">
-                <div className={`panel hud-card hud-card--phase ${match.phase === "reveal" ? "hud-card--reveal" : ""}`}>
-                  <span className="hud-label">Phase</span>
-                  <strong>{phaseLabel}</strong>
-                  <p className="hud-message">{match.message}</p>
-                  <div className="hud-pill-row">
-                    <span className={`hud-pill ${match.phase === "reveal" ? "hud-pill--active" : ""}`}>Reveal</span>
-                    <span className={`hud-pill ${match.phase === "player_turn" ? "hud-pill--active" : ""}`}>Player Turn</span>
-                    <span className={`hud-pill ${match.phase === "ai_turn" ? "hud-pill--active" : ""}`}>AI Turn</span>
-                    <span className={`hud-pill ${match.phase === "repick" ? "hud-pill--active" : ""}`}>Repick</span>
-                  </div>
-                </div>
-                <div className={`panel hud-card ${match.currentTurn === "player" ? "hud-card--activeTurn" : ""}`}>
-                  <span className="hud-label">Turn</span>
-                  <strong>{turnLabel}</strong>
-                  {match.phase === "reveal" ? (
-                    <div className="reveal-readout" aria-live="polite">
-                      <div className="reveal-readout__top">
-                        <span className="reveal-readout__label">Board locked</span>
-                        <strong>{revealSecondsLeft}s left</strong>
-                      </div>
-                      <div className="reveal-meter" aria-hidden="true">
-                        <span className="reveal-meter__fill" style={{ width: `${revealProgress}%` }} />
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="hud-message">Difficulty: {match.difficulty}</p>
-                  )}
-                </div>
-                <div className="panel hud-card">
-                  <span className="hud-label">Stats</span>
-                  <strong>{match.stats.playerDuelsWon} won / {match.stats.playerDuelsLost} lost</strong>
-                  <p className="hud-message">{match.stats.tieSequences} tie loops, {match.stats.decoyAbsorbed} decoy absorbs</p>
-                </div>
-              </aside>
+            <PlayerNameLabel name={bottomLabel} team="player" />
 
-              <section className="battle-grid">
-                <div className="panel board-panel">
-                  <div className="board-legend">
-                    <span><strong>Warm rows 6-5:</strong> Claude squad</span>
-                    <span><strong>Rows 4-3:</strong> neutral battle zone</span>
-                    <span><strong>Cool rows 2-1:</strong> your squad</span>
-                    <span><strong>Blue cells:</strong> legal move</span>
-                    <span><strong>Rose cells:</strong> legal duel</span>
-                  </div>
-                  {boardStatus ? (
-                    <p
-                      className={`action-feedback ${boardStatus.tone === "warning" ? "action-feedback--warning" : "action-feedback--info"}`}
-                      role="status"
-                    >
-                      {boardStatus.message}
-                    </p>
-                  ) : null}
-                  <div className="board-grid" data-testid="battle-board">
-                    {boardCells.map((cell) => (
-                      <div key={`${cell.row}-${cell.col}`} className="board-slot">
-                        <span className="board-slot__coords">{`R${cell.row} C${cell.col}`}</span>
-                        {cell.piece ? (
-                          <PieceButton
-                            piece={cell.piece}
-                            attackable={legalAttackTargets.has(cell.piece.id)}
-                            selected={cell.piece.id === selectedAttackerId}
-                            onClick={() => {
-                              const piece = cell.piece;
-                              if (piece) {
-                                onPieceClick(piece);
-                              }
-                            }}
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            className={`squad-cell squad-cell--empty squad-cell--emptyButton ${legalMoveTargets.has(`${cell.row}-${cell.col}`) ? "squad-cell--moveTarget" : ""}`}
-                            aria-label={`Empty cell row ${cell.row} col ${cell.col}${legalMoveTargets.has(`${cell.row}-${cell.col}`) ? ". Legal move target." : ""}`}
-                            onClick={() => {
-                              onEmptyCellClick(cell.row, cell.col);
-                            }}
-                          >
-                            {legalMoveTargets.has(`${cell.row}-${cell.col}`) ? (
-                              <>
-                                <span className="squad-cell__state squad-cell__state--move">Move</span>
-                                <span className="squad-cell__moveLabel">Move Here</span>
-                                <span className="squad-cell__moveMeta">Advance into R{cell.row} C{cell.col}</span>
-                              </>
-                            ) : (
-                              <span className="squad-cell__emptyHint">Hold position</span>
-                            )}
-                          </button>
-                        )}
+            {boardStatus ? (
+              <p className={`action-feedback ${boardStatus.tone === "warning" ? "action-feedback--warning" : "action-feedback--info"}`}>
+                {boardStatus.message}
+              </p>
+            ) : null}
+
+            <div className="nati-brief-row">
+              <div className="nati-brief-card">
+                <span className="hud-label">Selected</span>
+                <strong>{selectedPiece ? selectedPiece.label : "None"}</strong>
+                <p>{selectedPiece ? `Owner: ${selectedPiece.owner}` : "Choose one of your visible operatives to act."}</p>
+              </div>
+              <div className="nati-brief-card">
+                <span className="hud-label">Legal moves</span>
+                <strong>{legalMoveTargets.size}</strong>
+                <p>{actionHint}</p>
+              </div>
+              <div className="nati-brief-card">
+                <span className="hud-label">Legal duels</span>
+                <strong>{legalAttackTargets.size}</strong>
+                <p>{viewerOwner === "player" ? "You are controlling the red squad." : "You are controlling the blue squad."}</p>
+              </div>
+            </div>
+
+            {showDebugLog ? (
+              <div className="panel debug-log-panel" data-testid="debug-log-panel">
+                <h2 className="debug-log-panel__title">Debug Log</h2>
+                {match.eventLog && match.eventLog.length > 0 ? (
+                  <div className="debug-log">
+                    {match.eventLog.slice().reverse().map((entry) => (
+                      <div key={`${entry.turn}-${entry.message}`} className="debug-log__entry">
+                        <div className="debug-log__meta">
+                          <span className="debug-log__turn">Turn {entry.turn}</span>
+                          <span className="debug-log__badge">Log</span>
+                        </div>
+                        <p>{entry.message}</p>
                       </div>
                     ))}
                   </div>
-                </div>
+                ) : (
+                  <p>No moves logged yet.</p>
+                )}
+              </div>
+            ) : null}
 
-                <div className="sidebar-stack">
-                  <div className="panel">
-                    <h2>Command Brief</h2>
-                    {selectedAttacker ? (
-                      <>
-                        <p>
-                          Selected piece: <strong>{selectedAttacker.label}</strong>.
-                        </p>
-                        <div className="brief-status-grid">
-                          <div className="brief-status-card brief-status-card--move">
-                            <span className="brief-status-card__label">Legal moves</span>
-                            <strong>{legalMoveTargets.size}</strong>
-                            <p>Blue empty cells can be entered immediately.</p>
-                          </div>
-                          <div className="brief-status-card brief-status-card--attack">
-                            <span className="brief-status-card__label">Legal duels</span>
-                            <strong>{legalAttackTargets.size}</strong>
-                            <p>Rose enemy cells can be attacked now.</p>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <p>Select one of your alive operatives. Front-row pieces advance first and adjacent enemies become duel targets only after a selection.</p>
-                    )}
-                    {selectedAttacker && !hasLegalMoveTargets ? (
-                      <p>
-                        This piece has no empty legal move right now. Back-row pieces start blocked until the front row
-                        opens a lane.
-                      </p>
-                    ) : null}
-                    {selectedAttacker && !hasLegalAttackTargets ? <p>No adjacent duel is available from this position yet.</p> : null}
-                    <ul className="brief-list">
-                      <li>Reveal lasts 10 seconds.</li>
-                      <li>The backend hides enemy weapons and roles after reveal.</li>
-                      <li>Move front, left, or right into an empty square.</li>
-                      <li>Duel only when your piece is adjacent to an enemy.</li>
-                      <li>Flag death ends the match instantly.</li>
-                      <li>Decoys never die when they are attacked.</li>
-                    </ul>
-                  </div>
+            {match.result ? (
+              <div className="panel result-panel result-panel--embedded" data-testid="result-panel">
+                <h2>{match.result.winner === viewerOwner ? "Victory" : "Defeat"}</h2>
+                <p>{match.result.reason}</p>
+                <p>
+                  Match duration: <strong>{match.stats.durationSeconds}s</strong>
+                </p>
+                <button type="button" className="primary-button" onClick={() => void startMatch()}>
+                  Play Again
+                </button>
+              </div>
+            ) : null}
+          </section>
 
-                  <div className="panel" data-testid="duel-panel">
-                    <h2>Latest Duel</h2>
-                    {match.duel ? (
-                      <div className="duel-summary">
-                        <div className="duel-summary__header">
-                          <span className={`duel-summary__result ${match.duel.tie ? "duel-summary__result--tie" : match.duel.winner === "attacker" ? "duel-summary__result--win" : "duel-summary__result--loss"}`}>
-                            {match.duel.tie ? "Tie duel" : match.duel.winner === "attacker" ? "Attacker wins" : "Defender wins"}
-                          </span>
-                          {match.duel.decoyAbsorbed ? <span className="duel-summary__effect">Decoy absorbed</span> : null}
-                        </div>
-                        <div className="duel-summary__grid">
-                          <div className="duel-summary__combatant">
-                            <span className="duel-summary__label">Attacker</span>
-                            <strong>{match.duel.attackerName}</strong>
-                            <p>{match.duel.attackerWeapon}</p>
-                          </div>
-                          <div className="duel-summary__versus">vs</div>
-                          <div className="duel-summary__combatant">
-                            <span className="duel-summary__label">Defender</span>
-                            <strong>{match.duel.defenderName}</strong>
-                            <p>{match.duel.defenderWeapon}</p>
-                          </div>
-                        </div>
-                        <div className="duel-summary__notes">
-                          <p>
-                            {match.duel.tie
-                              ? "Tie. Pick a new weapon to continue."
-                              : match.duel.decoyAbsorbed
-                                ? "The defender stayed on the board because the decoy absorbed the hit."
-                                : match.duel.winner === "attacker"
-                                  ? "The attack connected and removed the defender."
-                                  : "The defender won the exchange."}
-                          </p>
-                          {match.duel.revealedRole ? <p>Revealed role: <strong>{match.duel.revealedRole}</strong></p> : null}
-                        </div>
-                      </div>
-                    ) : (
-                      <p>No duel yet. The first clash will reveal both weapons for that exchange only.</p>
-                    )}
-                  </div>
-
-                  <div className="panel" data-testid="debug-log-panel">
-                    <h2>Debug Log</h2>
-                    {match.eventLog && match.eventLog.length > 0 ? (
-                      <div className="debug-log">
-                        {match.eventLog.slice().reverse().map((entry) => (
-                          <div key={`${entry.turn}-${entry.message}`} className="debug-log__entry">
-                            <div className="debug-log__meta">
-                              <span className="debug-log__turn">Turn {entry.turn}</span>
-                              <span className={getDebugTone(entry.message)}>{getDebugLabel(entry.message)}</span>
-                            </div>
-                            <p>{entry.message}</p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p>No moves logged yet.</p>
-                    )}
-                  </div>
-
-                  {match.phase === "repick" ? (
-                    <div className="panel" data-testid="repick-panel">
-                      <h2>Tie Repick</h2>
-                      <p>Pick a new weapon for your operative. Claude will repick at the same time.</p>
-                      <div className="repick-row">
-                        {weaponButtons.map((weapon) => (
-                          <button
-                            key={weapon.id}
-                            type="button"
-                            className="secondary-button"
-                            onClick={() => void submitRepick(weapon.id)}
-                            disabled={loading}
-                          >
-                            {weapon.icon} {weapon.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {match.phase === "finished" && match.result ? (
-                    <div className="panel result-panel" data-testid="result-panel">
-                      <h2>{match.result.winner === "player" ? "You Win" : "You Lose"}</h2>
-                      <p>{match.result.reason}</p>
-                      <p>
-                        Match duration: <strong>{match.stats.durationSeconds}s</strong>
-                      </p>
-                      <button type="button" className="primary-button" onClick={() => void startMatch()}>
-                        Play Again
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              </section>
-            </section>
-          </>
-        )}
+          <aside className="panel nati-sidebar-shell">
+            <Sidebar phase={match.phase} revealTimer={revealSecondsLeft} stats={match.stats} match={match} difficulty={match.difficulty} />
+          </aside>
+        </section>
       </div>
     </main>
   );

@@ -44,8 +44,8 @@ class PlayerAttackRequest(BaseModel):
 
 class PlayerMoveRequest(BaseModel):
     piece_id: str = Field(validation_alias=AliasChoices("pieceId", "attackerId"))
-    row: int
-    col: int
+    row: int = Field(validation_alias=AliasChoices("row", "targetRow"))
+    col: int = Field(validation_alias=AliasChoices("col", "targetCol"))
 
 
 class TieRepickRequest(BaseModel):

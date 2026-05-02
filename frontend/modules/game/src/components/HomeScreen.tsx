@@ -1,3 +1,5 @@
+import { SettingsPanel } from "./SettingsPanel";
+
 interface HomeScreenProps {
   onChooseAi: () => void;
   onChooseOnline: () => void;
@@ -8,6 +10,9 @@ export function HomeScreen({ onChooseAi, onChooseOnline }: HomeScreenProps) {
     <main className="squad-shell">
       <div className="squad-backdrop" />
       <div className="squad-layout">
+        <div className="shell-toolbar">
+          <SettingsPanel />
+        </div>
         <section className="panel setup-panel">
           <p className="eyebrow">Squad RPS - Team 10</p>
           <h1 className="hero-title">Flag hunts, decoys, and hidden weapons.</h1>

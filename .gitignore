@@ -97,6 +97,7 @@ pnpm-debug.log*
 # Claude Code
 # ============================================
 .claude/todos/
+.claude/worktrees/
 
 # ============================================
 # Runtime / Misc
@@ -109,6 +110,7 @@ pnpm-debug.log*
 .turbo/
 .vercel/
 .netlify/
+*.tsbuildinfo
 tmp/
 temp/
 memory-game/

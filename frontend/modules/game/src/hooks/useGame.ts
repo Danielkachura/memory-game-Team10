@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-type Difficulty = "easy" | "medium" | "hard";
-type Weapon = "rock" | "paper" | "scissors";
-type Owner = "player" | "ai";
-type Mode = "ai" | "pvp";
-type Phase = "setup" | "reveal" | "player_turn" | "ai_turn" | "repick" | "finished";
+export type Difficulty = "easy" | "medium" | "hard";
+export type Weapon = "rock" | "paper" | "scissors";
+export type Owner = "player" | "ai";
+export type Mode = "ai" | "pvp";
+export type Phase = "setup" | "reveal" | "player_turn" | "ai_turn" | "repick" | "finished";
 
 export interface UseGameOptions {
   /** PVP only: existing match to attach to. If provided, no new match is created. */
@@ -27,12 +27,12 @@ export interface VisiblePiece {
   silhouette: boolean;
 }
 
-interface ActionFeedback {
+export interface ActionFeedback {
   tone: "info" | "warning";
   message: string;
 }
 
-interface DuelSummary {
+export interface DuelSummary {
   attackerId: string;
   attackerName: string;
   attackerWeapon: Weapon;
@@ -46,12 +46,20 @@ interface DuelSummary {
   revealedRole?: string;
 }
 
-interface MatchLogEntry {
+export interface MatchLogEntry {
   turn: number;
   message: string;
 }
 
-interface MatchView {
+export interface MatchStats {
+  durationSeconds: number;
+  playerDuelsWon: number;
+  playerDuelsLost: number;
+  tieSequences: number;
+  decoyAbsorbed: number;
+}
+
+export interface MatchView {
   matchId: string;
   phase: Phase;
   mode?: Mode;
@@ -60,13 +68,7 @@ interface MatchView {
   difficulty: Difficulty;
   message: string;
   board: VisiblePiece[];
-  stats: {
-    durationSeconds: number;
-    playerDuelsWon: number;
-    playerDuelsLost: number;
-    tieSequences: number;
-    decoyAbsorbed: number;
-  };
+  stats: MatchStats;
   revealEndsAt: number;
   duel: DuelSummary | null;
   result: { winner: Owner; reason: string } | null;
@@ -87,6 +89,8 @@ const DIFFICULTIES: Array<{ id: Difficulty; label: string; detail: string }> = [
   { id: "medium", label: "Medium", detail: "AI uses remembered reveals when possible." },
   { id: "hard", label: "Hard", detail: "AI pressures known favorable matchups." },
 ];
+
+export const REVEAL_DURATION_SECONDS = 10;
 
 import { API_BASE } from "../utils/apiBase";
 
@@ -299,8 +303,6 @@ export function useGame(options: UseGameOptions = {}) {
     const occupied = new Set(
       match.board.filter((piece) => piece.alive).map((piece) => `${piece.row}-${piece.col}`),
     );
-    // Player advances toward the enemy: row +1 for owner=player (viewing up),
-    // row -1 for owner=ai (player 2 advances downward toward player 1).
     const forwardDelta = selectedPiece.owner === "player" ? 1 : -1;
     const candidates: Array<[number, number]> = [
       [selectedPiece.row + forwardDelta, selectedPiece.col],
@@ -438,6 +440,29 @@ export function useGame(options: UseGameOptions = {}) {
     }
   }
 
+  async function movePiece(row: number, col: number) {
+    const current = matchRef.current;
+    if (!current || current.phase !== "player_turn" || !selectedAttackerId) {
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setActionFeedback(null);
+    try {
+      const next = await postJson<MatchView>(`/api/match/${current.matchId}/turn/player-move`, {
+        pieceId: selectedAttackerId,
+        targetRow: row,
+        targetCol: col,
+      }, token);
+      setMatch(next);
+      setSelectedAttackerId(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Move failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function attack(targetId: string) {
     const current = matchRef.current;
     if (!current || current.phase !== "player_turn" || !selectedAttackerId) {
@@ -455,29 +480,6 @@ export function useGame(options: UseGameOptions = {}) {
       setSelectedAttackerId(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Attack failed.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function movePiece(row: number, col: number) {
-    const current = matchRef.current;
-    if (!current || current.phase !== "player_turn" || !selectedAttackerId) {
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setActionFeedback(null);
-    try {
-      const next = await postJson<MatchView>(`/api/match/${current.matchId}/turn/player-move`, {
-        pieceId: selectedAttackerId,
-        row,
-        col,
-      }, token);
-      setMatch(next);
-      setSelectedAttackerId(null);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Move failed.");
     } finally {
       setLoading(false);
     }

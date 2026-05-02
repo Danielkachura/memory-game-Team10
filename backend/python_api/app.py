@@ -357,6 +357,10 @@ def piece_at(match_state: dict[str, Any], row: int, col: int) -> dict[str, Any] 
     )
 
 
+def is_adjacent(piece: dict[str, Any], row: int, col: int) -> bool:
+    return abs(piece["row"] - row) + abs(piece["col"] - col) == 1
+
+
 def valid_move_targets(piece: dict[str, Any]) -> set[tuple[int, int]]:
     row_delta = 1 if piece["owner"] == "player" else -1
     candidates = {
@@ -379,6 +383,15 @@ def adjacent_enemy_targets(match_state: dict[str, Any], piece: dict[str, Any]) -
         and other["owner"] != piece["owner"]
         and abs(other["row"] - piece["row"]) + abs(other["col"] - piece["col"]) == 1
     ]
+
+
+def legal_move_options(match_state: dict[str, Any], piece: dict[str, Any]) -> list[dict[str, Any]]:
+    options: list[dict[str, Any]] = []
+    for row, col in valid_move_targets(piece):
+        occupant = piece_at(match_state, row, col)
+        if occupant is None:
+            options.append({"row": row, "col": col})
+    return options
 
 
 def match_or_404(match_id: str) -> dict[str, Any]:
@@ -555,57 +568,64 @@ def movable_pieces(match_state: dict[str, Any], owner: Owner) -> list[dict[str, 
     pieces = alive_pieces(match_state, owner)
     movable: list[dict[str, Any]] = []
     for piece in pieces:
-        if any(
-            piece_at(match_state, row, col) is None
-            for row, col in valid_move_targets(piece)
-        ):
+        if legal_move_options(match_state, piece):
             movable.append(piece)
     return movable
 
 
-def choose_ai_move(match_state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], str]:
+def choose_ai_move(match_state: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None, str]:
     ai_pieces = alive_pieces(match_state, "ai")
-    player_pieces = alive_pieces(match_state, "player")
+    if not ai_pieces:
+        return None, None, "AI has no pieces left."
     difficulty = match_state["difficulty"]
     known = match_state["known_player_weapons"]
+    attack_moves: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    plain_moves: list[tuple[dict[str, Any], int, int]] = []
 
     for attacker in ai_pieces:
-        adjacent_targets = adjacent_enemy_targets(match_state, attacker)
-        for defender in adjacent_targets:
-            weapon = known.get(defender["id"], defender["weapon"])
-            if difficulty in ("medium", "hard") and weapon and duel_result(attacker, defender, attacker["weapon"], weapon) == "attacker":
-                return attacker, defender, "AI used a remembered adjacent matchup."
-        if adjacent_targets:
-            return attacker, adjacent_targets[0], "AI attacked an adjacent target."
+        for defender in adjacent_enemy_targets(match_state, attacker):
+            attack_moves.append((attacker, defender))
+        for option in legal_move_options(match_state, attacker):
+            plain_moves.append((attacker, option["row"], option["col"]))
 
-    movers = movable_pieces(match_state, "ai")
-    if movers:
-        mover = random.choice(movers)
-        target_row, target_col = next(
-            (row, col)
-            for row, col in valid_move_targets(mover)
-            if piece_at(match_state, row, col) is None
-        )
-        return mover, {"row": target_row, "col": target_col}, "AI advanced a piece."
+    for attacker, defender in attack_moves:
+        weapon = known.get(defender["id"], defender["weapon"])
+        if difficulty in ("medium", "hard") and weapon and duel_result(attacker, defender, attacker["weapon"], weapon) == "attacker":
+            return attacker, defender, "AI used a remembered adjacent matchup."
+
+    if attack_moves:
+        attacker, defender = random.choice(attack_moves)
+        return attacker, defender, "AI attacked an adjacent target."
+
+    if plain_moves:
+        attacker, row, col = random.choice(plain_moves)
+        return attacker, {"row": row, "col": col}, "AI advanced a piece."
 
     append_log(match_state, "AI had no legal adjacent attack or movement. Match state needs explicit stalemate handling.")
-    raise ValueError("AI has no legal moves.")
+    return None, None, "AI has no legal moves."
 
 
-def choose_ai_move_with_claude(match_state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | dict[str, int], str]:
+def choose_ai_move_with_claude(match_state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], str]:
     ai_pieces = alive_pieces(match_state, "ai")
     player_pieces = alive_pieces(match_state, "player")
+    valid_moves: list[dict[str, Any]] = []
+    for piece in ai_pieces:
+        for defender in adjacent_enemy_targets(match_state, piece):
+            valid_moves.append({
+                "action": "attack",
+                "pieceId": piece["id"],
+                "targetId": defender["id"],
+            })
+        for option in legal_move_options(match_state, piece):
+            valid_moves.append({
+                "action": "move",
+                "pieceId": piece["id"],
+                "row": option["row"],
+                "col": option["col"],
+            })
     visible_state = {
         "difficulty": match_state["difficulty"],
-        "aiPieces": [
-            {
-                "id": piece["id"],
-                "name": piece["name"],
-                "weapon": piece["weapon"],
-                "role": piece["role"],
-            }
-            for piece in ai_pieces
-        ],
+        "validMoves": valid_moves,
         "playerPieces": [
             {
                 "id": piece["id"],
@@ -614,44 +634,30 @@ def choose_ai_move_with_claude(match_state: dict[str, Any]) -> tuple[dict[str, A
             }
             for piece in player_pieces
         ],
-        "adjacentTargets": {
-            piece["id"]: [target["id"] for target in adjacent_enemy_targets(match_state, piece)]
-            for piece in ai_pieces
-        },
-        "legalMoves": {
-            piece["id"]: [
-                {"row": row, "col": col}
-                for row, col in valid_move_targets(piece)
-                if piece_at(match_state, row, col) is None
-            ]
-            for piece in ai_pieces
-        },
         "lastDuel": match_state.get("last_duel"),
     }
     prompt = (
         "You are choosing the AI move for a hidden-information Squad RPS duel. "
-        "Return JSON only with action, attackerId, optional targetId, optional row, optional col, reasoning. "
-        "Action must be attack or move. Choose only legal adjacent attacks or legal moves from the provided state. "
+        "Return JSON only with action, pieceId, optional targetId, optional row, optional col, reasoning. Choose only from validMoves. "
         f"Visible state: {json.dumps(visible_state)}"
     )
     text = call_claude_text(prompt, 180)
     parsed = json.loads(text)
     action = parsed.get("action")
-    attacker_id = parsed.get("attackerId")
+    attacker_id = parsed.get("pieceId")
     reasoning = str(parsed.get("reasoning", "AI used Claude guidance.")).strip()[:160]
     attacker = next(piece for piece in ai_pieces if piece["id"] == attacker_id)
-    if action == "move":
-        row = int(parsed.get("row"))
-        col = int(parsed.get("col"))
-        if position_key(row, col) not in valid_move_targets(attacker) or piece_at(match_state, row, col) is not None:
-            raise ValueError("Illegal AI move.")
-        return attacker, {"row": row, "col": col}, reasoning or "AI moved with Claude guidance."
-
-    target_id = parsed.get("targetId")
-    defender = next(piece for piece in player_pieces if piece["id"] == target_id)
-    if defender not in adjacent_enemy_targets(match_state, attacker):
-        raise ValueError("Illegal AI attack.")
-    return attacker, defender, reasoning or "AI used Claude guidance."
+    if action == "attack":
+        target_id = parsed.get("targetId")
+        defender = next(piece for piece in player_pieces if piece["id"] == target_id)
+        if defender not in adjacent_enemy_targets(match_state, attacker):
+            raise ValueError("Illegal AI attack.")
+        return attacker, defender, reasoning or "AI used Claude guidance."
+    row = int(parsed.get("row"))
+    col = int(parsed.get("col"))
+    if not any(option["row"] == row and option["col"] == col for option in legal_move_options(match_state, attacker)):
+        raise ValueError("Illegal AI move.")
+    return attacker, {"row": row, "col": col}, reasoning or "AI used Claude guidance."
 
 
 def create_match_state(
@@ -698,6 +704,9 @@ def create_match_state(
 def apply_move(match_state: dict[str, Any], piece: dict[str, Any], row: int, col: int, owner: Owner) -> None:
     from_row = piece["row"]
     from_col = piece["col"]
+    occupant = piece_at(match_state, row, col)
+    if occupant is not None:
+        raise HTTPException(status_code=400, detail="Destination is occupied.")
     piece["row"] = row
     piece["col"] = col
     match_state["last_duel"] = None
@@ -783,7 +792,7 @@ def player_attack(
         raise HTTPException(status_code=400, detail="Invalid duel target.")
     if attacker["owner"] != actor or defender["owner"] == actor:
         raise HTTPException(status_code=400, detail="Invalid attacker or target.")
-    if defender not in adjacent_enemy_targets(match_state, attacker):
+    if not is_adjacent(attacker, defender["row"], defender["col"]):
         raise HTTPException(status_code=400, detail="Target is not adjacent.")
 
     append_log(
@@ -813,8 +822,6 @@ def player_move(
     destination = position_key(payload.row, payload.col)
     if destination not in valid_move_targets(piece):
         raise HTTPException(status_code=400, detail="Illegal move.")
-    if piece_at(match_state, payload.row, payload.col) is not None:
-        raise HTTPException(status_code=400, detail="Destination is occupied.")
 
     apply_move(match_state, piece, payload.row, payload.col, actor)
     return build_player_view(match_state, viewer_for(match_state, x_player_token))
@@ -847,6 +854,10 @@ def tie_repick(
                 match_state, attacker, defender,
                 pending["initiated_by"], picks["attacker"], picks["defender"],
             )
+            move_to = pending.get("move_to")
+            if move_to and attacker["alive"] and not defender["alive"]:
+                attacker["row"] = move_to["row"]
+                attacker["col"] = move_to["col"]
         else:
             match_state["message"] = "Waiting for the other player to pick their tie weapon."
         return build_player_view(match_state, actor)
@@ -874,9 +885,10 @@ def ai_move(match_id: str) -> dict[str, Any]:
         try:
             attacker, action_target, reasoning = choose_ai_move(match_state)
         except Exception:
-            end_match(match_state, "player", "Claude had no legal move available.")
-            return build_player_view(match_state)
-
+            attacker, action_target, reasoning = None, None, "Claude had no legal move available."
+    if attacker is None:
+        end_match(match_state, "player", "Claude had no legal move available.")
+        return build_player_view(match_state)
     if isinstance(action_target, dict) and "row" in action_target and "col" in action_target:
         apply_move(match_state, attacker, int(action_target["row"]), int(action_target["col"]), "ai")
     else:

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { API_BASE } from "../utils/apiBase";
+import { SettingsPanel } from "./SettingsPanel";
 
 type Difficulty = "easy" | "medium" | "hard";
 
@@ -54,13 +55,11 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
   const [busy, setBusy] = useState(false);
   const [lanUrl, setLanUrl] = useState<string>(typeof window !== "undefined" ? window.location.origin : "");
 
-  // Persist display name.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (displayName.trim()) window.localStorage.setItem(DEFAULT_NAME_KEY, displayName.trim());
   }, [displayName]);
 
-  // Fetch the server's LAN IP and combine with the frontend's own port.
   useEffect(() => {
     getJson<{ lanIp: string }>("/api/server-info")
       .then((info) => {
@@ -70,7 +69,6 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
       .catch(() => setLanUrl(window.location.origin));
   }, []);
 
-  // Poll the open lobby list while we are browsing.
   useEffect(() => {
     if (pending) return undefined;
     let cancelled = false;
@@ -90,7 +88,6 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
     };
   }, [pending]);
 
-  // Host: poll our own lobby until a guest joins (status=started, matchId set).
   useEffect(() => {
     if (!pending || pending.role !== "host") return undefined;
     let cancelled = false;
@@ -169,7 +166,7 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
     try {
       await postJson(`/api/lobby/${pending.lobbyId}/cancel`, {}, pending.token);
     } catch {
-      // ignore — best effort
+      // ignore - best effort
     }
     setPending(null);
   }
@@ -179,16 +176,17 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
       <main className="squad-shell">
         <div className="squad-backdrop" />
         <div className="squad-layout">
+          <div className="shell-toolbar">
+            <SettingsPanel />
+          </div>
           <section className="panel setup-panel">
             <p className="eyebrow">Lobby - waiting</p>
-            <h1 className="hero-title">Waiting for a challenger…</h1>
+            <h1 className="hero-title">Waiting for a challenger...</h1>
             <p className="hero-copy">
               Your lobby is open as <strong>{pending.displayName}</strong>. Share this address with the
               other player so they can join from their browser on the same network:
             </p>
-            <code style={{ background: "rgba(0,0,0,0.35)", padding: "8px 12px", borderRadius: 8, wordBreak: "break-all" }}>
-              {lanUrl || window.location.origin}
-            </code>
+            <code className="lobby-link-box">{lanUrl || window.location.origin}</code>
             <div className="difficulty-list">
               <button type="button" className="secondary-button" onClick={cancelLobby}>
                 Cancel lobby
@@ -204,11 +202,14 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
     <main className="squad-shell">
       <div className="squad-backdrop" />
       <div className="squad-layout">
+        <div className="shell-toolbar">
+          <SettingsPanel />
+        </div>
         <section className="panel setup-panel">
           <p className="eyebrow">Online lobby</p>
           <h1 className="hero-title">Pick a name. Open a room or join one.</h1>
 
-          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <label className="lobby-field">
             <span>Display name</span>
             <input
               type="text"
@@ -216,25 +217,13 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
               onChange={(event) => setDisplayName(event.target.value.slice(0, 24))}
               placeholder="e.g. John"
               maxLength={24}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.15)",
-                background: "rgba(0,0,0,0.3)",
-                color: "var(--color-text)",
-                fontSize: "1rem",
-              }}
+              className="lobby-input"
             />
           </label>
 
           <div className="difficulty-list">
-            <button
-              type="button"
-              className="primary-button"
-              onClick={() => void createLobby()}
-              disabled={busy}
-            >
-              {busy ? "Working…" : "Create new lobby"}
+            <button type="button" className="primary-button" onClick={() => void createLobby()} disabled={busy}>
+              {busy ? "Working..." : "Create new lobby"}
             </button>
             <button type="button" className="secondary-button" onClick={onBack}>
               Back to home
@@ -244,27 +233,14 @@ export function LobbyScreen({ onMatchReady, onBack }: LobbyScreenProps) {
           <div>
             <h2 style={{ margin: "12px 0 8px" }}>Open lobbies</h2>
             {lobbies.length === 0 ? (
-              <p className="hero-copy">
-                No open lobbies. Create one and share this server URL with the second player.
-              </p>
+              <p className="hero-copy">No open lobbies. Create one and share this server URL with the second player.</p>
             ) : (
-              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+              <ul className="lobby-list">
                 {lobbies.map((lobby) => (
-                  <li
-                    key={lobby.lobbyId}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "12px 16px",
-                      borderRadius: 12,
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                    }}
-                  >
+                  <li key={lobby.lobbyId} className="lobby-list__item">
                     <div>
                       <strong>{lobby.hostName}</strong>
-                      <span style={{ marginLeft: 8, opacity: 0.7 }}>· {lobby.difficulty}</span>
+                      <span className="lobby-list__meta"> - {lobby.difficulty}</span>
                     </div>
                     <button
                       type="button"
