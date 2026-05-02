@@ -22,11 +22,13 @@ class SquadGenerateRequest(BaseModel):
 class MatchCreateRequest(BaseModel):
     difficulty: Difficulty = "medium"
     mode: MatchMode = "ai"
+    reveal_seconds: int = Field(default=10, ge=3, le=15, validation_alias=AliasChoices("revealSeconds", "reveal_seconds"))
 
 
 class LobbyCreateRequest(BaseModel):
     display_name: str = Field(validation_alias=AliasChoices("displayName", "name"), min_length=1, max_length=24)
     difficulty: Difficulty = "medium"
+    reveal_seconds: int = Field(default=10, ge=3, le=15, validation_alias=AliasChoices("revealSeconds", "reveal_seconds"))
 
 
 class LobbyJoinRequest(BaseModel):

@@ -1,16 +1,10 @@
 interface PlayerNameLabelProps {
   name: string;
-  team: "player" | "ai" | "cpu";
+  team: "ai" | "player";
 }
 
-/**
- * PlayerNameLabel — team name displayed above (CPU) or below (Player) the board.
- * Styled like RPS Online: bold, arcade font, team color.
- */
 export function PlayerNameLabel({ name, team }: PlayerNameLabelProps) {
-  const color =
-    team === "player" ? "var(--color-label-player)" : "var(--color-label-cpu)";
-
+  const color = team === "player" ? "var(--color-danger)" : "var(--color-primary)";
   return (
     <div
       data-testid={`label-${team}`}

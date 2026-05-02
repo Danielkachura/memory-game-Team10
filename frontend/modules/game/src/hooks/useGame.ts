@@ -27,12 +27,12 @@ export interface VisiblePiece {
   silhouette: boolean;
 }
 
-export interface ActionFeedback {
+interface ActionFeedback {
   tone: "info" | "warning";
   message: string;
 }
 
-export interface DuelSummary {
+interface DuelSummary {
   attackerId: string;
   attackerName: string;
   attackerWeapon: Weapon;
@@ -46,17 +46,9 @@ export interface DuelSummary {
   revealedRole?: string;
 }
 
-export interface MatchLogEntry {
+interface MatchLogEntry {
   turn: number;
   message: string;
-}
-
-export interface MatchStats {
-  durationSeconds: number;
-  playerDuelsWon: number;
-  playerDuelsLost: number;
-  tieSequences: number;
-  decoyAbsorbed: number;
 }
 
 export interface MatchView {
@@ -68,11 +60,18 @@ export interface MatchView {
   difficulty: Difficulty;
   message: string;
   board: VisiblePiece[];
-  stats: MatchStats;
+  stats: {
+    durationSeconds: number;
+    playerDuelsWon: number;
+    playerDuelsLost: number;
+    tieSequences: number;
+    decoyAbsorbed: number;
+  };
   revealEndsAt: number;
   duel: DuelSummary | null;
   result: { winner: Owner; reason: string } | null;
   repick?: { attackerId: string; targetId: string; picksReceived?: string[] };
+  rematch?: { status: "pending" | "declined" | "ready"; matchId?: string; message?: string };
   players?: { player?: string; ai?: string };
   eventLog?: MatchLogEntry[];
 }
@@ -89,8 +88,6 @@ const DIFFICULTIES: Array<{ id: Difficulty; label: string; detail: string }> = [
   { id: "medium", label: "Medium", detail: "AI uses remembered reveals when possible." },
   { id: "hard", label: "Hard", detail: "AI pressures known favorable matchups." },
 ];
-
-export const REVEAL_DURATION_SECONDS = 10;
 
 import { API_BASE } from "../utils/apiBase";
 
@@ -242,15 +239,17 @@ export function useGame(options: UseGameOptions = {}) {
     if (!match || match.mode !== "pvp" || !token) {
       return undefined;
     }
-    if (match.phase === "finished") {
-      return undefined;
-    }
     const myTurn = match.viewer === match.currentTurn;
     const waitingForOpponentRepick =
       match.phase === "repick" &&
       match.repick?.picksReceived?.includes(match.viewer === "player" ? "attacker" : "defender") &&
       (match.repick.picksReceived?.length ?? 0) < 2;
-    const shouldPoll = !myTurn || waitingForOpponentRepick || match.phase === "reveal";
+    const shouldPoll =
+      match.phase === "finished" ||
+      !myTurn ||
+      waitingForOpponentRepick ||
+      match.phase === "reveal" ||
+      match.rematch?.status === "pending";
     if (!shouldPoll) {
       return undefined;
     }
@@ -303,6 +302,8 @@ export function useGame(options: UseGameOptions = {}) {
     const occupied = new Set(
       match.board.filter((piece) => piece.alive).map((piece) => `${piece.row}-${piece.col}`),
     );
+    // Player advances toward the enemy: row +1 for owner=player (viewing up),
+    // row -1 for owner=ai (player 2 advances downward toward player 1).
     const forwardDelta = selectedPiece.owner === "player" ? 1 : -1;
     const candidates: Array<[number, number]> = [
       [selectedPiece.row + forwardDelta, selectedPiece.col],
@@ -440,29 +441,6 @@ export function useGame(options: UseGameOptions = {}) {
     }
   }
 
-  async function movePiece(row: number, col: number) {
-    const current = matchRef.current;
-    if (!current || current.phase !== "player_turn" || !selectedAttackerId) {
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setActionFeedback(null);
-    try {
-      const next = await postJson<MatchView>(`/api/match/${current.matchId}/turn/player-move`, {
-        pieceId: selectedAttackerId,
-        targetRow: row,
-        targetCol: col,
-      }, token);
-      setMatch(next);
-      setSelectedAttackerId(null);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Move failed.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function attack(targetId: string) {
     const current = matchRef.current;
     if (!current || current.phase !== "player_turn" || !selectedAttackerId) {
@@ -485,6 +463,29 @@ export function useGame(options: UseGameOptions = {}) {
     }
   }
 
+  async function movePiece(row: number, col: number) {
+    const current = matchRef.current;
+    if (!current || current.phase !== "player_turn" || !selectedAttackerId) {
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setActionFeedback(null);
+    try {
+      const next = await postJson<MatchView>(`/api/match/${current.matchId}/turn/player-move`, {
+        pieceId: selectedAttackerId,
+        row,
+        col,
+      }, token);
+      setMatch(next);
+      setSelectedAttackerId(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Move failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function submitRepick(weapon: Weapon) {
     const current = matchRef.current;
     if (!current || current.phase !== "repick") {
@@ -498,6 +499,25 @@ export function useGame(options: UseGameOptions = {}) {
       setMatch(next);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Repick failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitRematch(action: "accept" | "decline") {
+    const current = matchRef.current;
+    if (!current) {
+      return null;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await postJson<MatchView>(`/api/match/${current.matchId}/rematch`, { action }, token);
+      setMatch(next);
+      return next;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Rematch request failed.");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -585,6 +605,7 @@ export function useGame(options: UseGameOptions = {}) {
     setSelectedDifficulty,
     startMatch,
     submitRepick,
+    submitRematch,
     turnLabel,
     viewerOwner,
   };

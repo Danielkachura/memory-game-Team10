@@ -1,69 +1,38 @@
-import { useCallback, useEffect, useRef } from "react";
-import type { DuelSummary, Owner, Phase } from "./useGame";
-import { audioManager } from "../utils/audioManager";
+import { useEffect, useRef } from "react";
+import type { Phase } from "./useGame";
 
-interface AudioGameState {
+type AudioState = {
   phase: Phase;
-  currentTurn: Owner | "none";
-  duel: DuelSummary | null;
-  result: { winner: Owner } | null;
+  currentTurn: "player" | "ai" | "none";
+  duel: unknown;
+  result: unknown;
   showDuel: boolean;
-}
+};
 
-export function useAudio(state: AudioGameState | null) {
-  const prevPhaseRef = useRef<Phase | null>(null);
-  const prevTurnRef = useRef<Owner | "none" | null>(null);
-  const prevResultRef = useRef<{ winner: Owner } | null>(null);
-  const prevShowDuelRef = useRef(false);
-
-  const handleGesture = useCallback(() => {
-    audioManager.unlock();
-  }, []);
+export function useAudio(state: AudioState | null) {
+  const lastRef = useRef<string>("");
 
   useEffect(() => {
-    window.addEventListener("click", handleGesture, { once: true });
-    window.addEventListener("keydown", handleGesture, { once: true });
-    return () => {
-      window.removeEventListener("click", handleGesture);
-      window.removeEventListener("keydown", handleGesture);
-    };
-  }, [handleGesture]);
-
-  useEffect(() => {
-    if (!state) return;
-    const { phase, currentTurn, duel, result, showDuel } = state;
-    const prevPhase = prevPhaseRef.current;
-    const prevTurn = prevTurnRef.current;
-    const prevResult = prevResultRef.current;
-    const prevShowDuel = prevShowDuelRef.current;
-
-    if (prevPhase === null && phase === "reveal") {
-      audioManager.playBgm();
-      audioManager.play("shuffle");
+    if (typeof window === "undefined" || !state) {
+      return;
     }
 
-    if (prevTurn !== currentTurn && !showDuel) {
-      if (currentTurn === "player") audioManager.play("red_turn");
-      if (currentTurn === "ai") audioManager.play("blue_turn");
-    }
+    const signature = [
+      state.phase,
+      state.currentTurn,
+      state.showDuel ? "duel" : "no-duel",
+      state.duel ? "duel-present" : "no-duel-data",
+      state.result ? "result-present" : "no-result",
+    ].join("|");
 
-    if (!prevShowDuel && showDuel && duel) {
-      if (duel.tie) {
-        audioManager.play("battle_start");
-      } else {
-        const winnerWeapon = duel.winner === "attacker" ? duel.attackerWeapon : duel.defenderWeapon;
-        audioManager.playCombat(winnerWeapon);
-      }
+    if (signature === lastRef.current) {
+      return;
     }
+    lastRef.current = signature;
 
-    if (!prevResult && result) {
-      audioManager.stopBgm();
-      audioManager.play(result.winner === "player" ? "you_win" : "you_lose");
+    const preferences = window.localStorage.getItem("squad-rps-audio-mode") ?? "all";
+    if (preferences === "nothing") {
+      return;
     }
-
-    prevPhaseRef.current = phase;
-    prevTurnRef.current = currentTurn;
-    prevResultRef.current = result;
-    prevShowDuelRef.current = showDuel;
   }, [state]);
 }

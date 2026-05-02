@@ -1,241 +1,76 @@
-import type { DuelSummary, Weapon } from "../hooks/useGame";
+import type { Weapon } from "../hooks/useGame";
+
+interface DuelSummary {
+  attackerName: string;
+  attackerWeapon: Weapon;
+  defenderName: string;
+  defenderWeapon: Weapon;
+  winner: "attacker" | "defender" | "tie";
+}
 
 interface DuelOverlayProps {
   duel: DuelSummary;
   visible: boolean;
   repick?: boolean;
-  repickLocked?: boolean;
   onRepick?: (weapon: Weapon) => void;
 }
 
-const WEAPON_IMG: Record<string, string> = {
+const imgByWeapon: Record<Weapon, string> = {
   rock: "/rock_nobg.png",
   paper: "/paper_flat_nobg.png",
-  scissors: "/scissors_nobg.png",
+  scissors: "/character_red_scissors_nobg.png",
 };
 
-const WEAPON_LABEL: Record<string, string> = {
-  rock: "Rock",
-  paper: "Paper",
-  scissors: "Scissors",
-};
-
-const BEATS_TEXT: Partial<Record<Weapon, Partial<Record<Weapon, string>>>> = {
-  rock: { scissors: "Rock crushes Scissors" },
-  paper: { rock: "Paper covers Rock" },
-  scissors: { paper: "Scissors cut Paper" },
-};
-
-function weaponBeatsText(winner: Weapon, loser: Weapon): string {
-  return BEATS_TEXT[winner]?.[loser] ?? `${winner} beats ${loser}`;
-}
-
-function WeaponCard({
-  weapon,
-  isWinner,
-  isLoser,
-  isSelectable,
-  disabled,
-  onClick,
-}: {
-  weapon: Weapon;
-  isWinner: boolean;
-  isLoser: boolean;
-  isSelectable?: boolean;
-  disabled?: boolean;
-  onClick?: () => void;
-}) {
-  const styles = {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: "8px",
-    padding: "12px 20px",
-    borderRadius: "var(--radius-md)",
-    background: isWinner ? "rgba(68,187,68,0.3)" : isLoser ? "rgba(204,0,0,0.3)" : "rgba(0,0,0,0.3)",
-    border: isWinner ? "2px solid var(--color-success)" : isLoser ? "2px solid var(--color-danger)" : "2px solid rgba(255,255,255,0.2)",
-    transform: isWinner ? "scale(1.1)" : isLoser ? "scale(0.92)" : "scale(1)",
-    transition: "all 0.4s ease",
-    minWidth: "110px",
-    cursor: isSelectable && !disabled ? "pointer" : "default",
-    opacity: disabled ? 0.55 : 1,
-  } as const;
-
-  const content = (
-    <>
-      <img src={WEAPON_IMG[weapon] ?? ""} alt={weapon} style={{ width: "80px", height: "80px", objectFit: "contain" }} />
-      <span
-        style={{
-          fontFamily: "var(--font-heading)",
-          fontSize: "1.1rem",
-          color: isWinner ? "var(--color-success)" : isLoser ? "var(--color-danger)" : "var(--color-text)",
-          textShadow: "1px 1px 3px rgba(0,0,0,0.8)",
-        }}
-      >
-        {WEAPON_LABEL[weapon] ?? weapon}
-      </span>
-    </>
-  );
-
-  if (isSelectable) {
-    return (
-      <button type="button" disabled={disabled} onClick={onClick} style={styles} aria-label={`Choose ${WEAPON_LABEL[weapon] ?? weapon}`}>
-        {content}
-      </button>
-    );
-  }
-
-  return <div style={styles}>{content}</div>;
-}
-
-export function DuelOverlay({ duel, visible, repick, repickLocked, onRepick }: DuelOverlayProps) {
+export function DuelOverlay({ duel, visible, repick, onRepick }: DuelOverlayProps) {
   if (!visible) return null;
-
-  const attackerWon = duel.winner === "attacker";
-  const defenderWon = duel.winner === "defender";
-  const isTie = duel.tie;
-  const attackerIsPlayer = duel.attackerId.startsWith("player");
-  const attackerColor = attackerIsPlayer ? "var(--color-label-player)" : "var(--color-label-cpu)";
-  const defenderColor = attackerIsPlayer ? "var(--color-label-cpu)" : "var(--color-label-player)";
-  const attackerImg = attackerIsPlayer ? "/character_red_idle_nobg.png" : "/character_blue_front_nobg.png";
-  const defenderImg = attackerIsPlayer ? "/character_blue_front_nobg.png" : "/character_red_idle_nobg.png";
-
-  let resultText = "";
-  let beatsLine = "";
-  if (isTie) {
-    resultText = "TIE! Pick a new weapon.";
-  } else if (duel.decoyAbsorbed) {
-    resultText = "DECOY! Attack was absorbed.";
-  } else if (attackerWon) {
-    resultText = `${duel.attackerName} WINS!`;
-    beatsLine = weaponBeatsText(duel.attackerWeapon, duel.defenderWeapon);
-  } else if (defenderWon) {
-    resultText = `${duel.defenderName} DEFENDED!`;
-    beatsLine = weaponBeatsText(duel.defenderWeapon, duel.attackerWeapon);
-  }
 
   return (
     <div
-      className="duel-overlay"
       style={{
         position: "absolute",
         inset: 0,
-        background: "rgba(0,0,0,0.85)",
+        zIndex: 10,
+        background: "rgba(0,0,0,0.78)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: "20px",
-        zIndex: 100,
-        borderRadius: "2px",
-        animation: "fadeIn 0.2s ease",
+        gap: "18px",
+        borderRadius: "8px",
       }}
     >
-      <div
-        style={{
-          fontFamily: "var(--font-heading)",
-          fontSize: "2rem",
-          color: "var(--color-logo-text)",
-          textShadow: "2px 2px 0 rgba(0,0,0,0.8)",
-          letterSpacing: "2px",
-        }}
-      >
-        DUEL
+      <div style={{ fontFamily: "var(--font-heading)", fontSize: "2rem", color: "var(--color-secondary)" }}>DUEL</div>
+      <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+        <WeaponCard weapon={duel.attackerWeapon} label={duel.attackerName} />
+        <div style={{ fontFamily: "var(--font-heading)", color: "var(--color-warning)", fontSize: "2rem" }}>{duel.winner === "tie" ? "=" : "VS"}</div>
+        <WeaponCard weapon={duel.defenderWeapon} label={duel.defenderName} />
       </div>
-
-      <div style={{ display: "flex", gap: "32px", alignItems: "center" }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
-          <img src={attackerImg} alt="attacker" style={{ width: "72px", height: "72px", objectFit: "contain" }} />
-          <span style={{ fontSize: "0.72rem", color: "var(--color-text-muted)", fontFamily: "var(--font-ui)" }}>ATTACKER</span>
-          <span style={{ fontSize: "0.8rem", color: attackerColor, fontFamily: "var(--font-body)", fontWeight: "bold" }}>
-            {duel.attackerName}
-          </span>
-          <WeaponCard weapon={duel.attackerWeapon} isWinner={attackerWon && !duel.decoyAbsorbed} isLoser={defenderWon && !duel.decoyAbsorbed} />
-        </div>
-
-        <div
-          style={{
-            fontFamily: "var(--font-heading)",
-            fontSize: "2.5rem",
-            color: "var(--color-warning)",
-            textShadow: "2px 2px 0 rgba(0,0,0,0.8)",
-          }}
-        >
-          {isTie ? "=" : "VS"}
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
-          <img src={defenderImg} alt="defender" style={{ width: "72px", height: "72px", objectFit: "contain" }} />
-          <span style={{ fontSize: "0.72rem", color: "var(--color-text-muted)", fontFamily: "var(--font-ui)" }}>DEFENDER</span>
-          <span style={{ fontSize: "0.8rem", color: defenderColor, fontFamily: "var(--font-body)", fontWeight: "bold" }}>
-            {duel.defenderName}
-          </span>
-          <WeaponCard weapon={duel.defenderWeapon} isWinner={defenderWon && !duel.decoyAbsorbed} isLoser={attackerWon && !duel.decoyAbsorbed} />
-        </div>
-      </div>
-
-      {resultText && !repick ? (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "6px",
-            padding: "12px 28px",
-            background: "rgba(0,0,0,0.5)",
-            borderRadius: "var(--radius-sm)",
-            textAlign: "center",
-          }}
-        >
-          <span
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: "1.5rem",
-              color: isTie ? "var(--color-warning)" : attackerWon ? "var(--color-success)" : "var(--color-danger)",
-              textShadow: "2px 2px 0 rgba(0,0,0,0.8)",
-              letterSpacing: "1px",
-            }}
-          >
-            {resultText}
-          </span>
-          {beatsLine ? (
-            <span
-              style={{
-                fontFamily: "var(--font-ui)",
-                fontSize: "0.82rem",
-                color: "var(--color-text-muted)",
-                letterSpacing: "0.5px",
-              }}
-            >
-              {beatsLine}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
-
       {repick && onRepick ? (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
-          <div style={{ fontFamily: "var(--font-heading)", color: "var(--color-warning)", fontSize: "1.2rem" }}>
-            {repickLocked ? "WEAPON LOCKED" : "SELECT NEW WEAPON"}
-          </div>
-          <div style={{ display: "flex", gap: "16px" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+          <div style={{ color: "var(--color-warning)", fontFamily: "var(--font-heading)" }}>SELECT NEW WEAPON</div>
+          <div style={{ display: "flex", gap: "12px" }}>
             {(["rock", "paper", "scissors"] as Weapon[]).map((weapon) => (
-              <WeaponCard
+              <button
                 key={weapon}
-                weapon={weapon}
-                isWinner={false}
-                isLoser={false}
-                isSelectable={true}
-                disabled={repickLocked}
+                type="button"
                 onClick={() => onRepick(weapon)}
-              />
+                style={{ border: "none", background: "transparent", cursor: "pointer" }}
+              >
+                <WeaponCard weapon={weapon} label="" />
+              </button>
             ))}
           </div>
-          <span style={{ fontFamily: "var(--font-ui)", color: "var(--color-text-muted)", fontSize: "0.82rem" }}>
-            {repickLocked ? "Waiting for the other player to choose a new weapon." : "Tie means both sides must re-pick before the duel resolves."}
-          </span>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function WeaponCard({ weapon, label }: { weapon: Weapon; label: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", minWidth: "110px" }}>
+      <img src={imgByWeapon[weapon]} alt={weapon} style={{ width: "72px", height: "72px", objectFit: "contain" }} />
+      {label ? <div style={{ fontSize: "0.8rem" }}>{label}</div> : null}
     </div>
   );
 }

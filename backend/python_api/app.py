@@ -310,6 +310,7 @@ def build_player_view(match_state: dict[str, Any], viewer: Owner = "player") -> 
         "revealEndsAt": match_state["reveal_ends_at"],
         "duel": match_state.get("last_duel"),
         "result": match_state.get("result"),
+        "rematch": match_state.get("rematch"),
         "players": match_state.get("players"),
         "eventLog": match_state.get("event_log", []),
     }
@@ -406,6 +407,11 @@ def end_match(match_state: dict[str, Any], winner: Owner, reason: str) -> None:
     match_state["current_turn"] = "none"
     match_state["result"] = {"winner": winner, "reason": reason}
     match_state["message"] = reason
+    match_state["rematch"] = {
+        "status": "pending",
+        "accepts": [],
+        "declines": [],
+    }
     append_log(match_state, f"Match finished. Winner: {winner}. Reason: {reason}")
 
 
@@ -664,6 +670,7 @@ def create_match_state(
     difficulty: str,
     mode: str = "ai",
     players: dict[str, str] | None = None,
+    reveal_seconds: int = REVEAL_SECONDS,
 ) -> dict[str, Any]:
     squads = generate_squads()
     match_id = uuid.uuid4().hex[:10]
@@ -683,7 +690,7 @@ def create_match_state(
         "phase": "reveal",
         "current_turn": "player",
         "started_at": started_at,
-        "reveal_ends_at": started_at + REVEAL_SECONDS,
+        "reveal_ends_at": started_at + reveal_seconds,
         "message": "Memorize the enemy squad before the reveal timer ends.",
         "pieces": pieces,
         "stats": {
@@ -696,6 +703,7 @@ def create_match_state(
         "known_ai_weapons": {},
         "last_duel": None,
         "pending_repick": None,
+        "rematch": None,
         "result": None,
         "event_log": [],
     }
@@ -748,7 +756,7 @@ def create_match(payload: MatchCreateRequest) -> dict[str, Any]:
     # Solo-vs-AI matches are created here. PVP matches are created via /api/lobby/{id}/join.
     if payload.mode == "pvp":
         raise HTTPException(status_code=400, detail="PVP matches must be created via the lobby.")
-    match_state = create_match_state(payload.difficulty, "ai")
+    match_state = create_match_state(payload.difficulty, "ai", reveal_seconds=payload.reveal_seconds)
     append_log(match_state, f"Match created. Mode: ai. Difficulty: {payload.difficulty}. Reveal started.")
     MATCHES[match_state["id"]] = match_state
     return build_player_view(match_state)
@@ -955,6 +963,7 @@ def create_lobby(payload: LobbyCreateRequest) -> dict[str, Any]:
         "match_id": None,
         "status": "open",
         "difficulty": payload.difficulty,
+        "reveal_seconds": payload.reveal_seconds,
         "created_at": time.time(),
     }
     LOBBIES[lobby_id] = lobby
@@ -981,6 +990,7 @@ def join_lobby(lobby_id: str, payload: LobbyJoinRequest) -> dict[str, Any]:
         lobby["difficulty"],
         mode="pvp",
         players={"player": lobby["host_name"], "ai": guest_name},
+        reveal_seconds=int(lobby.get("reveal_seconds", REVEAL_SECONDS)),
     )
     append_log(match_state, f"Match created. Mode: pvp. Difficulty: {lobby['difficulty']}. Reveal started.")
     MATCHES[match_state["id"]] = match_state
@@ -1027,6 +1037,58 @@ def cancel_lobby(lobby_id: str, x_player_token: Optional[str] = Header(default=N
         raise HTTPException(status_code=403, detail="Cannot cancel this lobby.")
     lobby["status"] = "closed"
     return _public_lobby(lobby)
+
+
+@app.post("/api/match/{match_id}/rematch")
+def rematch(match_id: str, payload: dict[str, Any], x_player_token: Optional[str] = Header(default=None)) -> dict[str, Any]:
+    match_state = match_or_404(match_id)
+    if match_state["phase"] != "finished":
+        raise HTTPException(status_code=400, detail="Match is not finished.")
+    viewer = viewer_for(match_state, x_player_token)
+    rematch_state = match_state.setdefault("rematch", {"status": "pending", "accepts": [], "declines": []})
+    action = str(payload.get("action") or "").lower()
+    if action not in {"accept", "decline"}:
+        raise HTTPException(status_code=400, detail="Invalid rematch action.")
+
+    if action == "decline":
+        if viewer not in rematch_state["declines"]:
+            rematch_state["declines"].append(viewer)
+        rematch_state["status"] = "declined"
+        match_state["message"] = f"{viewer} declined the rematch."
+        append_log(match_state, f"Rematch declined by {viewer}.")
+        return build_player_view(match_state, viewer)
+
+    if viewer not in rematch_state["accepts"]:
+        rematch_state["accepts"].append(viewer)
+    match_state["message"] = f"{viewer} accepted the rematch."
+    append_log(match_state, f"Rematch accepted by {viewer}.")
+    if match_state.get("mode") == "pvp":
+        expected = {"player", "ai"}
+        if expected.issubset(set(rematch_state["accepts"])):
+            rematch_state["status"] = "ready"
+            new_match = create_match_state(
+                match_state["difficulty"],
+                mode="pvp",
+                players=match_state.get("players"),
+                reveal_seconds=int(match_state["reveal_ends_at"] - match_state["started_at"]),
+            )
+            MATCHES[new_match["id"]] = new_match
+            match_state["rematch"] = {"status": "ready", "matchId": new_match["id"]}
+            match_state["message"] = "Rematch ready."
+            append_log(match_state, f"Rematch ready. New match {new_match['id']}.")
+            return build_player_view(match_state, viewer)
+    else:
+        rematch_state["status"] = "ready"
+        new_match = create_match_state(
+            match_state["difficulty"],
+            mode="ai",
+            reveal_seconds=int(match_state["reveal_ends_at"] - match_state["started_at"]),
+        )
+        MATCHES[new_match["id"]] = new_match
+        match_state["rematch"] = {"status": "ready", "matchId": new_match["id"]}
+        match_state["message"] = "Rematch ready."
+        append_log(match_state, f"Rematch ready. New match {new_match['id']}.")
+    return build_player_view(match_state, viewer)
 
 
 # SPA static serving — only active in the packaged executable (PyInstaller).
