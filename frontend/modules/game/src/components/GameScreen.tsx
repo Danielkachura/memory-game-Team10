@@ -131,7 +131,6 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
         onSelect={setSelectedDifficulty}
         onStart={() => void startMatch()}
         loading={loading}
-        onBack={onExit}
       />
     );
   }
@@ -199,7 +198,7 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
               <RefereePanel phase={match.phase} currentTurn={match.currentTurn} showDuel={duelVisible} result={match.result} />
             </div>
 
-            <PlayerNameLabel name={topLabel} team="cpu" />
+            <PlayerNameLabel name={topLabel} team="ai" />
 
             <div className="board-legend">
               <span><strong>Blue cells:</strong> legal move</span>
@@ -261,7 +260,6 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
                   duel={match.duel}
                   visible={duelVisible}
                   repick={match.phase === "repick"}
-                  repickLocked={loading}
                   onRepick={match.phase === "repick" ? (weapon) => void submitRepick(weapon) : undefined}
                 />
               ) : null}
