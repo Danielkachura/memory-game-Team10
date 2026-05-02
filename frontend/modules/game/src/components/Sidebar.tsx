@@ -61,7 +61,11 @@ export function Sidebar({ phase, revealTimer, stats, match, difficulty, viewerOw
         overflowY: "auto",
       }}
     >
-      <img src="/character_red_kick_nobg.png" alt="Squad RPS" style={{ width: "130px", objectFit: "contain" }} />
+      <img
+        src={isBlueViewer ? "/character_blue_kick_nobg.png" : "/character_red_kick_nobg.png"}
+        alt="Squad RPS"
+        style={{ width: "130px", objectFit: "contain" }}
+      />
 
       {isPvp ? (
         <div
