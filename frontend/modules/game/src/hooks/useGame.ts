@@ -178,12 +178,10 @@ export function useGame(options: UseGameOptions = {}) {
       setRevealArmed(false);
       return undefined;
     }
+    setRevealArmed(true);
     const tick = () => {
       const remaining = Math.max(0, Math.ceil(match.revealEndsAt - Date.now() / 1000));
       setRevealSecondsLeft(remaining);
-      if (remaining > 0) {
-        setRevealArmed(true);
-      }
     };
     tick();
     const interval = window.setInterval(tick, 250);

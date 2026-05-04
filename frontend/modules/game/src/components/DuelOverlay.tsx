@@ -64,6 +64,7 @@ export function DuelOverlay({ duel, visible, repick, onRepick }: DuelOverlayProp
               <button
                 key={weapon}
                 type="button"
+                aria-label={`Choose ${weapon[0].toUpperCase()}${weapon.slice(1)}`}
                 onClick={() => onRepick(weapon)}
                 style={{ border: "none", background: "transparent", cursor: "pointer" }}
               >

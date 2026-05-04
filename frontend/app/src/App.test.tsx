@@ -134,7 +134,7 @@ describe("App", () => {
         "/api/match/match-1/turn/player-move",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ pieceId: "player-1", targetRow: 2, targetCol: 1 }),
+          body: JSON.stringify({ pieceId: "player-1", row: 2, col: 1 }),
         }),
       );
     });
@@ -267,7 +267,7 @@ describe("App", () => {
         "/api/match/match-1/turn/player-move",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ pieceId: "player-1", targetRow: 3, targetCol: 3 }),
+          body: JSON.stringify({ pieceId: "player-1", row: 3, col: 3 }),
         }),
       );
     });

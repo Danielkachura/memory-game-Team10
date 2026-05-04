@@ -1,4 +1,4 @@
-import { defineConfig, devices } from "./frontend/node_modules/@playwright/test/index.js";
+import { defineConfig, devices } from "./frontend/app/node_modules/@playwright/test/index.js";
 
 export default defineConfig({
   testDir: "./tests/e2e",

@@ -1,7 +1,7 @@
-import type { Card } from "@shared";
+import type { MemoryCardData } from "../utils/buildDeck";
 
 interface MemoryCardProps {
-  card: Card;
+  card: MemoryCardData;
   onFlip: (cardId: string) => void;
   sizeClassName: string;
   disabled: boolean;

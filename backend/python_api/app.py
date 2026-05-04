@@ -31,11 +31,18 @@ from .service import ClaudeProxyError, call_claude_text
 
 app = FastAPI(title="Squad RPS Python API")
 
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:8000").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["content-type", "x-player-token"],
+    allow_credentials=False,
 )
 
 # Path to the pre-built React frontend; resolved at module load time.
@@ -125,7 +132,7 @@ def weapon_title(weapon: Weapon) -> str:
 def public_piece_label(piece: dict[str, Any], viewer: Owner, phase: Phase, finished: bool) -> str:
     is_owner = piece["owner"] == viewer
     if not piece["alive"]:
-        if finished:
+        if finished or is_owner:
             role_suffix = f" {piece['role']}" if piece["role"] != "soldier" else ""
             return f"{weapon_title(piece['weapon'])}{role_suffix}"
         return "Defeated unit"
@@ -284,8 +291,8 @@ def visible_piece(piece: dict[str, Any], viewer: Owner, phase: Phase, finished: 
         "label": public_piece_label(piece, viewer, phase, finished),
         "weapon": piece["weapon"] if show_weapon and piece["alive"] else None,
         "weaponIcon": WEAPON_ICON[piece["weapon"]] if show_weapon and piece["alive"] else None,
-        "role": piece["role"] if show_role and piece["alive"] else None,
-        "roleIcon": ROLE_ICON[piece["role"]] if show_role and piece["alive"] else None,
+        "role": piece["role"] if show_role else None,
+        "roleIcon": ROLE_ICON[piece["role"]] if show_role else None,
         "silhouette": not show_weapon and piece["alive"],
     }
 
@@ -331,6 +338,8 @@ def viewer_for(match_state: dict[str, Any], token: Optional[str]) -> Owner:
         return "player"
     if not token:
         raise HTTPException(status_code=401, detail="Missing player token.")
+    if token not in TOKENS:
+        raise HTTPException(status_code=401, detail="Invalid player token.")
     info = TOKENS.get(token)
     if not info or info["match_id"] != match_state["id"]:
         raise HTTPException(status_code=401, detail="Invalid player token.")
@@ -348,14 +357,23 @@ def assert_actor(match_state: dict[str, Any], token: Optional[str]) -> Owner:
 
 
 def piece_at(match_state: dict[str, Any], row: int, col: int) -> dict[str, Any] | None:
-    return next(
-        (
-            piece
-            for piece in match_state["pieces"]
-            if piece["alive"] and piece["row"] == row and piece["col"] == col
-        ),
-        None,
-    )
+    return piece_at_fast(build_position_index(match_state), row, col)
+
+
+def build_position_index(match_state: dict[str, Any]) -> dict[tuple[int, int], dict[str, Any]]:
+    return {
+        (piece["row"], piece["col"]): piece
+        for piece in match_state["pieces"]
+        if piece["alive"]
+    }
+
+
+def piece_at_fast(
+    position_index: dict[tuple[int, int], dict[str, Any]],
+    row: int,
+    col: int,
+) -> dict[str, Any] | None:
+    return position_index.get((row, col))
 
 
 def is_adjacent(piece: dict[str, Any], row: int, col: int) -> bool:
@@ -388,8 +406,9 @@ def adjacent_enemy_targets(match_state: dict[str, Any], piece: dict[str, Any]) -
 
 def legal_move_options(match_state: dict[str, Any], piece: dict[str, Any]) -> list[dict[str, Any]]:
     options: list[dict[str, Any]] = []
+    position_index = build_position_index(match_state)
     for row, col in valid_move_targets(piece):
-        occupant = piece_at(match_state, row, col)
+        occupant = piece_at_fast(position_index, row, col)
         if occupant is None:
             options.append({"row": row, "col": col})
     return options
@@ -712,7 +731,7 @@ def create_match_state(
 def apply_move(match_state: dict[str, Any], piece: dict[str, Any], row: int, col: int, owner: Owner) -> None:
     from_row = piece["row"]
     from_col = piece["col"]
-    occupant = piece_at(match_state, row, col)
+    occupant = piece_at_fast(build_position_index(match_state), row, col)
     if occupant is not None:
         raise HTTPException(status_code=400, detail="Destination is occupied.")
     piece["row"] = row
@@ -798,6 +817,8 @@ def player_attack(
     defender = next((piece for piece in match_state["pieces"] if piece["id"] == payload.target_id), None)
     if not attacker or not defender or not attacker["alive"] or not defender["alive"]:
         raise HTTPException(status_code=400, detail="Invalid duel target.")
+    if match_state.get("mode", "ai") == "ai" and attacker["owner"] != "player":
+        raise HTTPException(status_code=400, detail="Cannot attack with AI pieces.")
     if attacker["owner"] != actor or defender["owner"] == actor:
         raise HTTPException(status_code=400, detail="Invalid attacker or target.")
     if not is_adjacent(attacker, defender["row"], defender["col"]):
@@ -889,10 +910,12 @@ def ai_move(match_id: str) -> dict[str, Any]:
     started = time.time()
     try:
         attacker, action_target, reasoning = choose_ai_move_with_claude(match_state)
-    except Exception:
+    except Exception as claude_error:
+        append_log(match_state, f"Claude AI failed: {str(claude_error)[:160]}. Falling back to local AI.")
         try:
             attacker, action_target, reasoning = choose_ai_move(match_state)
-        except Exception:
+        except Exception as fallback_error:
+            append_log(match_state, f"Fallback AI failed: {str(fallback_error)[:160]}.")
             attacker, action_target, reasoning = None, None, "Claude had no legal move available."
     if attacker is None:
         end_match(match_state, "player", "Claude had no legal move available.")

@@ -1,5 +1,7 @@
 # Memory Game - Team 10
 
+[![Tests](https://github.com/memory-game-Team10/memory-game-Team10/actions/workflows/test.yml/badge.svg)](https://github.com/memory-game-Team10/memory-game-Team10/actions/workflows/test.yml)
+
 Browser-based memory card game built for a hackathon with a React frontend and Python backend for Claude-powered theme generation, hints, and end-game narration.
 
 ## Product Summary
@@ -65,6 +67,31 @@ Run the Python backend from the project root with:
 ```bash
 python -m uvicorn backend.python_api.app:app --host 127.0.0.1 --port 8000 --reload
 python -m unittest backend.python_api.tests.test_app
+```
+
+## Coverage Reports
+
+Frontend coverage:
+
+```bash
+npm --prefix frontend/app run test -- --coverage
+```
+
+Backend coverage:
+
+```bash
+cd backend
+pytest --cov=python_api --cov-report=html --cov-report=term-missing
+```
+
+The frontend HTML report is written to `frontend/app/coverage/`. The backend HTML report is written to `backend/htmlcov/`.
+
+## CORS Configuration
+
+The backend allows localhost origins by default. For deployment, set `ALLOWED_ORIGINS` to a comma-separated list:
+
+```bash
+ALLOWED_ORIGINS=https://your-frontend.example,http://localhost:5173
 ```
 
 ## Definition of Done

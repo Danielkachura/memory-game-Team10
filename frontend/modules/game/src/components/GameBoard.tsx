@@ -1,8 +1,9 @@
-import type { Card, Difficulty } from "@shared";
+import type { Difficulty } from "@shared";
+import type { MemoryCardData } from "../utils/buildDeck";
 import { MemoryCard } from "./MemoryCard";
 
 interface GameBoardProps {
-  cards: Card[];
+  cards: MemoryCardData[];
   difficulty: Difficulty;
   onFlip: (cardId: string) => void;
   locked: boolean;

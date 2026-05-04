@@ -1,4 +1,5 @@
-import type { Difficulty, Theme } from "../types/game";
+import type { Difficulty } from "../types/game";
+import type { MemoryTheme } from "./themeContent";
 
 export const PAIRS_BY_DIFFICULTY: Record<Difficulty, number> = {
   easy: 6,
@@ -13,7 +14,7 @@ export const GRID_BY_DIFFICULTY: Record<Difficulty, { columns: number; rows: num
     hard: { columns: 6, rows: 4, label: "6 x 4" },
   };
 
-export const APP_THEME_OPTIONS: Array<{ id: Theme; label: string; description: string }> = [
+export const APP_THEME_OPTIONS: Array<{ id: MemoryTheme; label: string; description: string }> = [
   { id: "animals", label: "Animals", description: "Friendly creatures and emoji pairs." },
   { id: "flags", label: "Flags", description: "Country flag matching challenges." },
   { id: "space", label: "Space", description: "Planets, rockets, and cosmic symbols." },

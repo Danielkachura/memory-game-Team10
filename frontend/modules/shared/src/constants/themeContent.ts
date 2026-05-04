@@ -1,6 +1,6 @@
-import type { Theme } from "../types/game";
+export type MemoryTheme = "animals" | "flags" | "space" | "custom-ai";
 
-export const THEME_CONTENT: Record<Exclude<Theme, "custom-ai">, string[]> = {
+export const THEME_CONTENT: Record<Exclude<MemoryTheme, "custom-ai">, string[]> = {
   animals: [
     "\u{1F436}",
     "\u{1F431}",

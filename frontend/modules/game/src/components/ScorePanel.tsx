@@ -1,10 +1,11 @@
-import type { Difficulty, Theme } from "@shared";
+import type { Difficulty } from "@shared";
+import type { MemoryTheme } from "@shared/constants/themeContent";
 
 interface ScorePanelProps {
   moves: number;
   timeElapsed: number;
   difficulty: Difficulty;
-  theme: Theme;
+  theme: MemoryTheme;
   onNewGame: () => void;
   onBackToMenu: () => void;
   onHint: () => void;

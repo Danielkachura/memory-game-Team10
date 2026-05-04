@@ -68,6 +68,40 @@ describe("useGame", () => {
     });
   });
 
+  it("completes an already-expired reveal match after refresh", async () => {
+    const expiredReveal = {
+      ...revealMatch(),
+      matchId: "expired-reveal",
+      revealEndsAt: Date.now() / 1000 - 1,
+    };
+    const completedReveal = {
+      ...expiredReveal,
+      phase: "player_turn",
+      message: "Your turn. Pick an attacker and an enemy target.",
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => expiredReveal,
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => completedReveal,
+      } as Response);
+
+    const { result } = renderHook(() => useGame());
+
+    await act(async () => {
+      await result.current.startMatch();
+    });
+
+    await waitFor(() => {
+      expect(result.current.match?.phase).toBe("player_turn");
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toContain("/api/match/expired-reveal/reveal/complete");
+  });
+
   it("returns local action feedback for blocked attacks", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
       ok: true,

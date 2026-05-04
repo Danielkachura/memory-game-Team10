@@ -1,4 +1,4 @@
-import { expect, test } from "../../frontend/node_modules/@playwright/test/index.js";
+import { expect, test } from "../../frontend/app/node_modules/@playwright/test/index.js";
 
 const matchView = {
   matchId: "match-e2e",

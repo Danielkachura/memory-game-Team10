@@ -1,8 +1,17 @@
 import { CUSTOM_AI_FALLBACK_CONTENT, PAIRS_BY_DIFFICULTY, THEME_CONTENT } from "@shared";
-import type { Card, Difficulty, Theme } from "@shared";
+import type { Difficulty } from "@shared";
+import type { MemoryTheme } from "@shared/constants/themeContent";
 import { shuffle } from "./shuffle";
 
-function contentPool(theme: Theme, providedContent?: string[]) {
+export interface MemoryCardData {
+  id: string;
+  pairId: string;
+  content: string;
+  isFlipped: boolean;
+  isMatched: boolean;
+}
+
+function contentPool(theme: MemoryTheme, providedContent?: string[]) {
   if (theme === "custom-ai") {
     return providedContent?.length ? providedContent : CUSTOM_AI_FALLBACK_CONTENT;
   }
@@ -11,10 +20,10 @@ function contentPool(theme: Theme, providedContent?: string[]) {
 
 export function buildDeck(
   difficulty: Difficulty,
-  theme: Theme,
+  theme: MemoryTheme,
   providedContent?: string[],
   ordered = false,
-): Card[] {
+): MemoryCardData[] {
   const pairCount = PAIRS_BY_DIFFICULTY[difficulty];
   const selected = contentPool(theme, providedContent).slice(0, pairCount);
   const cards = selected.flatMap((content, index) => {

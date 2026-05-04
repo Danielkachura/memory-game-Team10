@@ -1,13 +1,14 @@
-import type { Difficulty, Theme } from "@shared";
+import type { Difficulty } from "@shared";
+import type { MemoryTheme } from "@shared/constants/themeContent";
 
 interface GameSetupProps {
   difficulty: Difficulty;
-  theme: Theme;
+  theme: MemoryTheme;
   onDifficultyChange: (difficulty: Difficulty) => void;
-  onThemeChange: (theme: Theme) => void;
+  onThemeChange: (theme: MemoryTheme) => void;
   onStart: () => void;
   difficultyOptions: Array<{ id: Difficulty; label: string; gridLabel: string; pairs: number }>;
-  themeOptions: Array<{ id: Theme; label: string; description: string }>;
+  themeOptions: Array<{ id: MemoryTheme; label: string; description: string }>;
 }
 
 export function GameSetup(props: GameSetupProps) {
