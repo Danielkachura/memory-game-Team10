@@ -65,6 +65,7 @@ export function DuelOverlay({ duel, visible, repick, onRepick }: DuelOverlayProp
 
   return (
     <div
+      data-testid="duel-overlay"
       style={{
         position: "absolute",
         inset: 0,
