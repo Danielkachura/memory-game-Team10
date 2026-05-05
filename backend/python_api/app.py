@@ -31,11 +31,18 @@ from .service import ClaudeProxyError, call_claude_text
 
 app = FastAPI(title="Squad RPS Python API")
 
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:8000").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["content-type", "x-player-token"],
+    allow_credentials=False,
 )
 
 # Path to the pre-built React frontend; resolved at module load time.
@@ -273,7 +280,11 @@ def visible_piece(piece: dict[str, Any], viewer: Owner, phase: Phase, finished: 
     is_owner = piece["owner"] == viewer
     reveal_all = finished
     show_weapon = phase == "reveal" or is_owner or reveal_all
-    show_role = (is_owner and phase != "reveal") or (reveal_all and piece["role"] != "soldier")
+    show_role = (
+        (is_owner and phase != "reveal")
+        or (not piece["alive"] and piece["role"] != "soldier")
+        or (reveal_all and piece["role"] != "soldier")
+    )
 
     return {
         "id": piece["id"],
@@ -284,8 +295,8 @@ def visible_piece(piece: dict[str, Any], viewer: Owner, phase: Phase, finished: 
         "label": public_piece_label(piece, viewer, phase, finished),
         "weapon": piece["weapon"] if show_weapon and piece["alive"] else None,
         "weaponIcon": WEAPON_ICON[piece["weapon"]] if show_weapon and piece["alive"] else None,
-        "role": piece["role"] if show_role and piece["alive"] else None,
-        "roleIcon": ROLE_ICON[piece["role"]] if show_role and piece["alive"] else None,
+        "role": piece["role"] if show_role else None,
+        "roleIcon": ROLE_ICON[piece["role"]] if show_role else None,
         "silhouette": not show_weapon and piece["alive"],
     }
 
@@ -415,6 +426,18 @@ def end_match(match_state: dict[str, Any], winner: Owner, reason: str) -> None:
     append_log(match_state, f"Match finished. Winner: {winner}. Reason: {reason}")
 
 
+def update_decoy_stalemate(match_state: dict[str, Any]) -> None:
+    if match_state.get("decoy_stalemate"):
+        return
+    for owner in ("player", "ai"):
+        alive = alive_pieces(match_state, owner)
+        if alive and all(piece["role"] == "decoy" for piece in alive):
+            match_state["decoy_stalemate"] = True
+            match_state["message"] = "Lone Decoy remaining — now killable."
+            append_log(match_state, "Lone Decoy remaining — now killable.")
+            return
+
+
 def apply_duel_outcome(
     match_state: dict[str, Any],
     attacker: dict[str, Any],
@@ -447,7 +470,7 @@ def apply_duel_outcome(
         match_state["known_player_weapons"][defender["id"]] = defender_weapon
 
     if winner == "attacker":
-        if defender["role"] == "decoy":
+        if defender["role"] == "decoy" and not match_state.get("decoy_stalemate"):
             duel["decoyAbsorbed"] = True
             match_state["stats"]["decoy_absorbed"] += 1
             match_state["message"] = "The decoy absorbed the attack and stayed on the board."
@@ -494,6 +517,8 @@ def apply_duel_outcome(
             f"{weapon_title(defender_weapon)} over {weapon_title(attacker_weapon)}.",
         )
 
+    update_decoy_stalemate(match_state)
+
     if match_state["phase"] != "finished":
         next_owner: Owner = "ai" if initiated_by == "player" else "player"
         match_state["current_turn"] = next_owner
@@ -514,6 +539,7 @@ def resolve_attack(
     attacker_weapon: Weapon | None = None,
     defender_weapon: Weapon | None = None,
 ) -> None:
+    update_decoy_stalemate(match_state)
     duel_winner = duel_result(
         attacker,
         defender,
@@ -521,6 +547,24 @@ def resolve_attack(
         defender_weapon or defender["weapon"],
     )
     if duel_winner == "tie":
+        previous_tie_count = int((match_state.get("pending_repick") or {}).get("tie_count", 0))
+        tie_count = previous_tie_count + 1
+        if tie_count >= 5:
+            forced_winner = random.choice(["attacker", "defender"])
+            match_state["pending_repick"] = None
+            match_state["stats"]["tie_sequences"] += 1
+            append_log(match_state, "Forced resolution after 5 consecutive ties.")
+            apply_duel_outcome(
+                match_state,
+                attacker,
+                defender,
+                forced_winner,
+                attacker_weapon or attacker["weapon"],
+                defender_weapon or defender["weapon"],
+                initiated_by,
+            )
+            return
+
         match_state["phase"] = "repick"
         match_state["current_turn"] = initiated_by
         match_state["pending_repick"] = {
@@ -529,6 +573,7 @@ def resolve_attack(
             "initiated_by": initiated_by,
             "attacker_weapon": attacker_weapon or attacker["weapon"],
             "defender_weapon": defender_weapon or defender["weapon"],
+            "tie_count": tie_count,
         }
         match_state["stats"]["tie_sequences"] += 1
         match_state["message"] = "Tie. Pick a new weapon to continue the duel."
@@ -703,6 +748,7 @@ def create_match_state(
         "known_ai_weapons": {},
         "last_duel": None,
         "pending_repick": None,
+        "decoy_stalemate": False,
         "rematch": None,
         "result": None,
         "event_log": [],

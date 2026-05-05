@@ -1,8 +1,10 @@
 import type { Weapon } from "../hooks/useGame";
 
 interface DuelSummary {
+  attackerId: string;
   attackerName: string;
   attackerWeapon: Weapon;
+  defenderId: string;
   defenderName: string;
   defenderWeapon: Weapon;
   winner: "attacker" | "defender" | "tie";

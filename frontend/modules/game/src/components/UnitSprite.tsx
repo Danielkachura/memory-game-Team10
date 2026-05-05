@@ -60,6 +60,7 @@ export function UnitSprite({
   const isPlayer = piece.owner === "player";
   const showWeapon = piece.owner === "player" || isRevealPhase || !piece.silhouette;
   const roleFlag = piece.role === "flag" ? (isPlayer ? "/flag_red_nobg.png" : "/flag_blue_nobg.png") : null;
+  const revealedRoleTitle = !piece.alive && piece.role === "flag" ? "Revealed flag" : piece.role === "decoy" && !piece.alive ? "Revealed decoy" : null;
   const baseLabel = piece.silhouette ? "Enemy silhouette" : `${piece.label}${piece.weaponIcon ? ` ${piece.weaponIcon}` : ""}`;
   const stateLabel = selected ? " Selected operative." : isValidTarget ? " Adjacent legal duel target." : "";
 
@@ -133,6 +134,7 @@ export function UnitSprite({
         <img
           src={roleFlag}
           alt="flag"
+          title={revealedRoleTitle ?? "flag"}
           draggable={false}
           style={{
             position: "absolute",
@@ -148,7 +150,7 @@ export function UnitSprite({
 
       {((isPlayer && piece.role === "decoy") || (!piece.silhouette && piece.role === "decoy")) ? (
         <div
-          title="Decoy"
+          title={revealedRoleTitle ?? "Decoy"}
           style={{
             position: "absolute",
             top: "-4px",
