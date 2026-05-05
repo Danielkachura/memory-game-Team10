@@ -38,10 +38,94 @@ class PythonApiTests(unittest.TestCase):
         enemy_pieces = [piece for piece in payload["board"] if piece["owner"] == "ai" and piece["alive"]]
         self.assertTrue(all(piece["weapon"] is None for piece in enemy_pieces))
 
+    @patch("backend.python_api.app.generate_squads")
+    def test_role_assignment_endpoint_transitions_to_player_turn(self, mocked_generate) -> None:
+        mocked_generate.return_value = battle_app.fallback_squads()
+        create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()
+        match_id = create_payload["matchId"]
+
+        reveal_response = self.client.post(
+            f"/api/match/{match_id}/reveal/complete",
+            json={"confirmed": True},
+        )
+
+        self.assertEqual(reveal_response.status_code, 200)
+        self.assertEqual(reveal_response.json()["phase"], "role_select")
+
+        match_state = battle_app.MATCHES[match_id]
+        player_pieces = [piece for piece in match_state["pieces"] if piece["owner"] == "player"]
+        response = self.client.post(
+            f"/api/match/{match_id}/roles/assign",
+            json={"flagId": player_pieces[0]["id"], "decoyId": player_pieces[1]["id"]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["phase"], "player_turn")
+        self.assertEqual(payload["currentTurn"], "player")
+        assigned_flag = next(piece for piece in payload["board"] if piece["id"] == player_pieces[0]["id"])
+        assigned_decoy = next(piece for piece in payload["board"] if piece["id"] == player_pieces[1]["id"])
+        self.assertEqual(assigned_flag["role"], "flag")
+        self.assertEqual(assigned_decoy["role"], "decoy")
+
+    @patch("backend.python_api.app.generate_squads")
+    def test_role_assignment_rejects_duplicate_or_enemy_ids(self, mocked_generate) -> None:
+        mocked_generate.return_value = battle_app.fallback_squads()
+        create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()
+        match_id = create_payload["matchId"]
+        self.client.post(f"/api/match/{match_id}/reveal/complete", json={"confirmed": True})
+        match_state = battle_app.MATCHES[match_id]
+        player_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "player")
+        enemy_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "ai")
+
+        duplicate = self.client.post(
+            f"/api/match/{match_id}/roles/assign",
+            json={"flagId": player_piece["id"], "decoyId": player_piece["id"]},
+        )
+        enemy = self.client.post(
+            f"/api/match/{match_id}/roles/assign",
+            json={"flagId": player_piece["id"], "decoyId": enemy_piece["id"]},
+        )
+
+        self.assertEqual(duplicate.status_code, 400)
+        self.assertEqual(enemy.status_code, 400)
+
+    def test_lone_enemy_decoy_becomes_killable_after_stalemate(self) -> None:
+        create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()
+        match_id = create_payload["matchId"]
+        match_state = battle_app.MATCHES[match_id]
+        match_state["phase"] = "player_turn"
+        match_state["current_turn"] = "player"
+
+        player_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "player")
+        decoy = next(piece for piece in match_state["pieces"] if piece["owner"] == "ai")
+        player_piece.update({"row": 4, "col": 1, "weapon": "rock", "role": "soldier"})
+        decoy.update({"row": 5, "col": 1, "weapon": "scissors", "role": "decoy", "alive": True})
+        for piece in match_state["pieces"]:
+            if piece["owner"] == "ai" and piece["id"] != decoy["id"]:
+                piece["alive"] = False
+                piece["role"] = "soldier"
+
+        response = self.client.post(
+            f"/api/match/{match_id}/turn/player-attack",
+            json={"attackerId": player_piece["id"], "targetId": decoy["id"]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(decoy["alive"])
+        self.assertTrue(match_state["decoy_stalemate"])
+        self.assertTrue(any("Decoy stalemate" in entry["message"] for entry in match_state["event_log"]))
+
     def test_dead_enemy_role_stays_hidden_until_match_ends(self) -> None:
         create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()
         match_id = create_payload["matchId"]
         self.client.post(f"/api/match/{match_id}/reveal/complete", json={"confirmed": True})
+        match_state = battle_app.MATCHES[match_id]
+        player_pieces = [piece for piece in match_state["pieces"] if piece["owner"] == "player"]
+        self.client.post(
+            f"/api/match/{match_id}/roles/assign",
+            json={"flagId": player_pieces[0]["id"], "decoyId": player_pieces[1]["id"]},
+        )
         match_state = battle_app.MATCHES[match_id]
 
         player_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "player")
@@ -55,13 +139,47 @@ class PythonApiTests(unittest.TestCase):
         own_dead_piece = next(piece for piece in active_payload["board"] if piece["id"] == player_piece["id"])
         enemy_dead_piece = next(piece for piece in active_payload["board"] if piece["id"] == ai_piece["id"])
         self.assertEqual(own_dead_piece["role"], "flag")
-        self.assertIsNone(enemy_dead_piece["role"])
-        self.assertEqual(enemy_dead_piece["label"], "Defeated unit")
+        self.assertEqual(enemy_dead_piece["role"], "decoy")
+        self.assertIn("decoy", enemy_dead_piece["label"])
 
         battle_app.end_match(match_state, "player", "Enemy flag captured.")
         finished_payload = self.client.get(f"/api/match/{match_id}").json()
         revealed_enemy_piece = next(piece for piece in finished_payload["board"] if piece["id"] == ai_piece["id"])
         self.assertEqual(revealed_enemy_piece["role"], "decoy")
+
+    def test_visible_piece_hidden_info_audit(self) -> None:
+        enemy = {
+            "id": "ai-audit",
+            "owner": "ai",
+            "row": 5,
+            "col": 2,
+            "alive": True,
+            "name": "Audit Enemy",
+            "weapon": "paper",
+            "role": "flag",
+        }
+
+        hidden = battle_app.visible_piece(enemy, "player", "player_turn", False)
+        self.assertIsNone(hidden["weapon"])
+        self.assertIsNone(hidden["weaponIcon"])
+        self.assertIsNone(hidden["role"])
+        self.assertIsNone(hidden["roleIcon"])
+        self.assertTrue(hidden["silhouette"])
+
+        reveal = battle_app.visible_piece(enemy, "player", "reveal", False)
+        self.assertEqual(reveal["weapon"], "paper")
+        self.assertEqual(reveal["weaponIcon"], battle_app.WEAPON_ICON["paper"])
+        self.assertIsNone(reveal["role"])
+        self.assertIsNone(reveal["roleIcon"])
+        self.assertFalse(reveal["silhouette"])
+
+        enemy["alive"] = False
+        defeated = battle_app.visible_piece(enemy, "player", "player_turn", False)
+        self.assertIsNone(defeated["weapon"])
+        self.assertIsNone(defeated["weaponIcon"])
+        self.assertEqual(defeated["role"], "flag")
+        self.assertEqual(defeated["roleIcon"], battle_app.ROLE_ICON["flag"])
+        self.assertFalse(defeated["silhouette"])
 
     def test_own_dead_piece_shows_role(self) -> None:
         create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()
@@ -275,6 +393,12 @@ class PythonApiTests(unittest.TestCase):
         match_id = create_payload["matchId"]
         self.client.post(f"/api/match/{match_id}/reveal/complete", json={"confirmed": True})
         match_state = battle_app.MATCHES[match_id]
+        player_pieces = [piece for piece in match_state["pieces"] if piece["owner"] == "player"]
+        self.client.post(
+            f"/api/match/{match_id}/roles/assign",
+            json={"flagId": player_pieces[0]["id"], "decoyId": player_pieces[1]["id"]},
+        )
+        match_state = battle_app.MATCHES[match_id]
 
         player_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "player")
         ai_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "ai")
@@ -304,6 +428,40 @@ class PythonApiTests(unittest.TestCase):
         payload = repick_response.json()
         self.assertEqual(payload["duel"]["attackerWeapon"], "paper")
         self.assertEqual(payload["duel"]["defenderWeapon"], "scissors")
+
+    def test_fifth_consecutive_tie_forces_resolution(self) -> None:
+        create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()
+        match_id = create_payload["matchId"]
+        match_state = battle_app.MATCHES[match_id]
+        match_state["phase"] = "player_turn"
+        match_state["current_turn"] = "player"
+
+        player_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "player")
+        ai_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "ai")
+        player_piece.update({"row": 4, "col": 1, "weapon": "rock", "role": "soldier"})
+        ai_piece.update({"row": 5, "col": 1, "weapon": "rock", "role": "soldier"})
+
+        tie_response = self.client.post(
+            f"/api/match/{match_id}/turn/player-attack",
+            json={"attackerId": player_piece["id"], "targetId": ai_piece["id"]},
+        )
+        self.assertEqual(tie_response.status_code, 200)
+        self.assertEqual(tie_response.json()["phase"], "repick")
+
+        with patch("backend.python_api.app.random.choice", side_effect=["rock", "rock", "rock", "rock", "attacker"]):
+            for _ in range(4):
+                response = self.client.post(
+                    f"/api/match/{match_id}/turn/tie-repick",
+                    json={"weapon": "rock"},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertNotEqual(payload["phase"], "repick")
+        self.assertIsNone(match_state["pending_repick"])
+        self.assertEqual(payload["duel"]["winner"], "attacker")
+        self.assertFalse(payload["duel"]["tie"])
+        self.assertTrue(any("forced resolution" in entry["message"].lower() for entry in payload["eventLog"]))
 
     def test_ai_without_legal_move_ends_match_instead_of_attacking_illegally(self) -> None:
         create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()

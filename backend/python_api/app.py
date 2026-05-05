@@ -22,6 +22,7 @@ from .schemas import (
     MatchCreateRequest,
     PlayerAttackRequest,
     PlayerMoveRequest,
+    RoleAssignRequest,
     RevealCompleteRequest,
     SquadGenerateRequest,
     TieRepickRequest,
@@ -50,7 +51,7 @@ _DIST = Path(__file__).resolve().parent.parent.parent / "dist"
 
 Owner = Literal["player", "ai"]
 Role = Literal["soldier", "flag", "decoy"]
-Phase = Literal["setup", "reveal", "player_turn", "ai_turn", "repick", "finished"]
+Phase = Literal["setup", "reveal", "role_select", "player_turn", "ai_turn", "repick", "finished"]
 Mode = Literal["ai", "pvp"]
 
 WEAPONS: list[Weapon] = ["rock", "paper", "scissors"]
@@ -132,10 +133,10 @@ def weapon_title(weapon: Weapon) -> str:
 def public_piece_label(piece: dict[str, Any], viewer: Owner, phase: Phase, finished: bool) -> str:
     is_owner = piece["owner"] == viewer
     if not piece["alive"]:
+        role_suffix = f" {piece['role']}" if piece["role"] != "soldier" else ""
         if finished or is_owner:
-            role_suffix = f" {piece['role']}" if piece["role"] != "soldier" else ""
             return f"{weapon_title(piece['weapon'])}{role_suffix}"
-        return "Defeated unit"
+        return f"Defeated unit{role_suffix}"
     if finished:
         role_suffix = f" {piece['role']}" if piece["role"] != "soldier" else ""
         return f"{weapon_title(piece['weapon'])}{role_suffix}"
@@ -241,12 +242,35 @@ def generate_squads() -> dict[str, list[dict[str, Any]]]:
         return fallback_squads()
 
 
+def assign_random_roles(match_state: dict[str, Any], owner: Owner) -> None:
+    pieces = [piece for piece in match_state["pieces"] if piece["owner"] == owner and piece["alive"]]
+    flag_piece, decoy_piece = random.sample(pieces, 2)
+    flag_piece["role"] = "flag"
+    decoy_piece["role"] = "decoy"
+
+
 def assign_roles(match_state: dict[str, Any]) -> None:
     for owner in ("player", "ai"):
-        pieces = [piece for piece in match_state["pieces"] if piece["owner"] == owner]
-        flag_piece, decoy_piece = random.sample(pieces, 2)
-        flag_piece["role"] = "flag"
-        decoy_piece["role"] = "decoy"
+        assign_random_roles(match_state, owner)
+
+
+def assign_player_roles(match_state: dict[str, Any], flag_id: str, decoy_id: str, owner: Owner = "player") -> None:
+    if flag_id == decoy_id:
+        raise HTTPException(status_code=400, detail="Flag and decoy must be different pieces.")
+    pieces_by_id = {piece["id"]: piece for piece in match_state["pieces"]}
+    flag_piece = pieces_by_id.get(flag_id)
+    decoy_piece = pieces_by_id.get(decoy_id)
+    selected = [flag_piece, decoy_piece]
+    if any(piece is None for piece in selected):
+        raise HTTPException(status_code=400, detail="Invalid role selection.")
+    if any(piece["owner"] != owner or not piece["alive"] for piece in selected if piece is not None):
+        raise HTTPException(status_code=400, detail="Roles can only be assigned to your alive pieces.")
+
+    for piece in match_state["pieces"]:
+        if piece["owner"] == owner:
+            piece["role"] = "soldier"
+    flag_piece["role"] = "flag"
+    decoy_piece["role"] = "decoy"
 
 
 def stats_view(match_state: dict[str, Any]) -> dict[str, Any]:
@@ -280,7 +304,11 @@ def visible_piece(piece: dict[str, Any], viewer: Owner, phase: Phase, finished: 
     is_owner = piece["owner"] == viewer
     reveal_all = finished
     show_weapon = phase == "reveal" or is_owner or reveal_all
-    show_role = (is_owner and phase != "reveal") or (reveal_all and piece["role"] != "soldier")
+    show_role = (
+        (is_owner and phase != "reveal")
+        or (not piece["alive"] and piece["role"] != "soldier")
+        or (reveal_all and piece["role"] != "soldier")
+    )
 
     return {
         "id": piece["id"],
@@ -434,6 +462,17 @@ def end_match(match_state: dict[str, Any], winner: Owner, reason: str) -> None:
     append_log(match_state, f"Match finished. Winner: {winner}. Reason: {reason}")
 
 
+def update_decoy_stalemate(match_state: dict[str, Any]) -> None:
+    if match_state.get("decoy_stalemate"):
+        return
+    for owner in ("player", "ai"):
+        alive = alive_pieces(match_state, owner)
+        if alive and all(piece["role"] == "decoy" for piece in alive):
+            match_state["decoy_stalemate"] = True
+            append_log(match_state, f"Decoy stalemate: all remaining {owner} pieces are decoys; decoys are now killable.")
+            return
+
+
 def apply_duel_outcome(
     match_state: dict[str, Any],
     attacker: dict[str, Any],
@@ -466,7 +505,7 @@ def apply_duel_outcome(
         match_state["known_player_weapons"][defender["id"]] = defender_weapon
 
     if winner == "attacker":
-        if defender["role"] == "decoy":
+        if defender["role"] == "decoy" and not match_state.get("decoy_stalemate"):
             duel["decoyAbsorbed"] = True
             match_state["stats"]["decoy_absorbed"] += 1
             match_state["message"] = "The decoy absorbed the attack and stayed on the board."
@@ -513,6 +552,8 @@ def apply_duel_outcome(
             f"{weapon_title(defender_weapon)} over {weapon_title(attacker_weapon)}.",
         )
 
+    update_decoy_stalemate(match_state)
+
     if match_state["phase"] != "finished":
         next_owner: Owner = "ai" if initiated_by == "player" else "player"
         match_state["current_turn"] = next_owner
@@ -533,6 +574,7 @@ def resolve_attack(
     attacker_weapon: Weapon | None = None,
     defender_weapon: Weapon | None = None,
 ) -> None:
+    update_decoy_stalemate(match_state)
     duel_winner = duel_result(
         attacker,
         defender,
@@ -540,6 +582,27 @@ def resolve_attack(
         defender_weapon or defender["weapon"],
     )
     if duel_winner == "tie":
+        previous_tie_count = int((match_state.get("pending_repick") or {}).get("tie_count", 0))
+        tie_count = previous_tie_count + 1
+        if tie_count >= 5:
+            forced_winner = random.choice(["attacker", "defender"])
+            match_state["pending_repick"] = None
+            match_state["stats"]["tie_sequences"] += 1
+            append_log(
+                match_state,
+                f"Tie cap reached after {tie_count} consecutive ties; forced resolution awarded to {forced_winner}.",
+            )
+            apply_duel_outcome(
+                match_state,
+                attacker,
+                defender,
+                forced_winner,
+                attacker_weapon or attacker["weapon"],
+                defender_weapon or defender["weapon"],
+                initiated_by,
+            )
+            return
+
         match_state["phase"] = "repick"
         match_state["current_turn"] = initiated_by
         match_state["pending_repick"] = {
@@ -548,6 +611,7 @@ def resolve_attack(
             "initiated_by": initiated_by,
             "attacker_weapon": attacker_weapon or attacker["weapon"],
             "defender_weapon": defender_weapon or defender["weapon"],
+            "tie_count": tie_count,
         }
         match_state["stats"]["tie_sequences"] += 1
         match_state["message"] = "Tie. Pick a new weapon to continue the duel."
@@ -722,6 +786,7 @@ def create_match_state(
         "known_ai_weapons": {},
         "last_duel": None,
         "pending_repick": None,
+        "decoy_stalemate": False,
         "rematch": None,
         "result": None,
         "event_log": [],
@@ -790,16 +855,37 @@ def complete_reveal(
     match_state = match_or_404(match_id)
     viewer = viewer_for(match_state, x_player_token)
     if match_state["phase"] == "reveal":
-        assign_roles(match_state)
-        match_state["phase"] = "player_turn"
+        assign_random_roles(match_state, "ai")
+        match_state["phase"] = "role_select"
         match_state["current_turn"] = "player"
         if match_state.get("mode") == "pvp":
             host_name = match_state["players"].get("player", "Player 1")
-            match_state["message"] = f"{host_name}'s turn. Pick a piece and act."
+            match_state["message"] = f"{host_name}, choose your flag and decoy."
         else:
-            match_state["message"] = "Your turn. Pick an attacker and an enemy target."
-        append_log(match_state, "Reveal ended. Roles assigned. First turn started.")
+            match_state["message"] = "Choose your flag and decoy before tactical play starts."
+        append_log(match_state, "Reveal ended. Player role selection started.")
     return build_player_view(match_state, viewer)
+
+
+@app.post("/api/match/{match_id}/roles/assign")
+def assign_roles_endpoint(
+    match_id: str,
+    payload: RoleAssignRequest,
+    x_player_token: Optional[str] = Header(default=None),
+) -> dict[str, Any]:
+    match_state = match_or_404(match_id)
+    if match_state["phase"] != "role_select":
+        raise HTTPException(status_code=400, detail="Role selection is not active.")
+    actor = viewer_for(match_state, x_player_token)
+    if actor != "player":
+        raise HTTPException(status_code=400, detail="Only the player can assign roles.")
+
+    assign_player_roles(match_state, payload.flag_id, payload.decoy_id, actor)
+    match_state["phase"] = "player_turn"
+    match_state["current_turn"] = "player"
+    match_state["message"] = "Your turn. Pick an attacker and an enemy target."
+    append_log(match_state, "Player assigned flag and decoy. First turn started.")
+    return build_player_view(match_state, actor)
 
 
 @app.post("/api/match/{match_id}/turn/player-attack")

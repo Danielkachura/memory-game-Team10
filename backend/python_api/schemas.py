@@ -39,6 +39,11 @@ class RevealCompleteRequest(BaseModel):
     confirmed: bool = True
 
 
+class RoleAssignRequest(BaseModel):
+    flag_id: str = Field(alias="flagId")
+    decoy_id: str = Field(alias="decoyId")
+
+
 class PlayerAttackRequest(BaseModel):
     attacker_id: str = Field(alias="attackerId")
     target_id: str = Field(alias="targetId")

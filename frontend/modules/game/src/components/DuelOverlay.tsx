@@ -1,11 +1,16 @@
 import type { Weapon } from "../hooks/useGame";
 
 interface DuelSummary {
+  attackerId: string;
   attackerName: string;
   attackerWeapon: Weapon;
+  defenderId: string;
   defenderName: string;
   defenderWeapon: Weapon;
   winner: "attacker" | "defender" | "tie";
+  tie?: boolean;
+  decoyAbsorbed?: boolean;
+  revealedRole?: string;
 }
 
 interface DuelOverlayProps {
@@ -56,6 +61,12 @@ export function DuelOverlay({ duel, visible, repick, onRepick }: DuelOverlayProp
         <div style={{ fontFamily: "var(--font-heading)", color: "var(--color-warning)", fontSize: "2rem" }}>{duel.winner === "tie" ? "=" : "VS"}</div>
         <WeaponCard weapon={duel.defenderWeapon} unitId={duel.defenderId} label={duel.defenderName} />
       </div>
+      {duel.revealedRole === "flag" ? (
+        <div style={{ color: "var(--color-warning)", fontFamily: "var(--font-heading)", fontSize: "1.4rem" }}>Flag!</div>
+      ) : null}
+      {duel.revealedRole === "decoy" ? (
+        <div style={{ color: "var(--color-secondary)", fontFamily: "var(--font-heading)", fontSize: "1.4rem" }}>Decoy!</div>
+      ) : null}
       {repick && onRepick ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
           <div style={{ color: "var(--color-warning)", fontFamily: "var(--font-heading)" }}>SELECT NEW WEAPON</div>

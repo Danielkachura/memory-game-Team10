@@ -526,6 +526,37 @@ textarea:focus-visible {
   margin-bottom: 12px;
 }
 
+.hud-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+}
+
+.hud-bar__item {
+  display: grid;
+  gap: 3px;
+  min-width: 84px;
+}
+
+.hud-bar__item--countdown strong {
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--color-warning);
+}
+
+.hud-bar__badge {
+  width: max-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--color-secondary);
+  color: var(--color-surface);
+}
+
 .nati-board-stage {
   position: relative;
   flex: 1 1 auto;
@@ -612,6 +643,70 @@ textarea:focus-visible {
   color: var(--color-text);
   text-align: center;
   line-height: 1.2;
+}
+
+.unit-token {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.unit-token__sprite {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.22));
+}
+
+.unit-token--silhouette .unit-token__sprite {
+  filter: saturate(0.15) brightness(0.62) drop-shadow(0 8px 10px rgba(0, 0, 0, 0.22));
+  opacity: 0.78;
+}
+
+.unit-token--selected {
+  outline: 3px solid var(--color-secondary);
+  animation: selectedPulse 1s ease-in-out infinite;
+}
+
+.unit-token--attack-target {
+  outline: 3px solid var(--color-danger);
+}
+
+.unit-token__badge {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 800;
+  font-size: 0.78rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.unit-token__badge--weapon {
+  right: -4px;
+  bottom: -2px;
+}
+
+.unit-token__badge--role {
+  left: -4px;
+  top: -2px;
+}
+
+@keyframes selectedPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
 }
 
 .nati-empty-target {
@@ -1055,6 +1150,17 @@ textarea:focus-visible {
   background: rgba(125, 211, 252, 0.1);
 }
 
+.action-feedback-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.action-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+
 .sidebar-stack {
   display: flex;
   flex-direction: column;
@@ -1316,6 +1422,52 @@ textarea:focus-visible {
 
 .debug-log-panel__title {
   margin: 0 0 12px;
+}
+
+.event-log-panel {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+}
+
+.event-log-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.event-log-panel__header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.event-log-panel__toggle {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+}
+
+.event-log-panel__list {
+  display: grid;
+  gap: 8px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.event-log-panel__entry {
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+}
+
+.event-log-panel__entry span {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.event-log-panel__entry p {
+  margin: 2px 0 0;
 }
 
 .repick-row {
