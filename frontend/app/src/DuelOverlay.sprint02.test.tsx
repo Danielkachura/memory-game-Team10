@@ -1,11 +1,17 @@
 import { render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { act } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DuelOverlay } from "../../modules/game/src/components/DuelOverlay";
 
 describe("DuelOverlay Sprint 02 regression", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders a full duel object without crashing and routes weapon art by unit id", () => {
+    vi.useFakeTimers();
     render(
       <DuelOverlay
         visible
@@ -22,6 +28,8 @@ describe("DuelOverlay Sprint 02 regression", () => {
         }}
       />,
     );
+
+    act(() => vi.advanceTimersByTime(300));
 
     expect(screen.getByAltText("rock")).toHaveAttribute("src", "/character_red_rock_nobg.png");
     expect(screen.getByAltText("scissors")).toHaveAttribute("src", "/character_blue_scissors_nobg.png");

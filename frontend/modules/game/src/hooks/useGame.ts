@@ -41,7 +41,7 @@ interface DuelSummary {
   tie: boolean;
   decoyAbsorbed: boolean;
   eliminatedId?: string;
-  revealedRole?: string;
+  revealedRole?: "soldier" | "flag" | "decoy";
 }
 
 interface MatchLogEntry {

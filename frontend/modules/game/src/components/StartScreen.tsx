@@ -1,5 +1,3 @@
-import { GameSetup } from "./GameSetup";
-
 interface StartScreenProps {
   difficulties: Array<{ id: string; label: string; detail: string }>;
   selected: string;

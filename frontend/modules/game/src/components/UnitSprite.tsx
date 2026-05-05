@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { VisiblePiece } from "../hooks/useGame";
 
 interface UnitSpriteProps {
@@ -7,6 +8,9 @@ interface UnitSpriteProps {
   isRevealPhase: boolean;
   isDying: boolean;
   isMoving?: boolean;
+  isLanding?: boolean;
+  justHidden?: boolean;
+  swayOffset?: number;
   onClick: () => void;
 }
 
@@ -55,18 +59,45 @@ export function UnitSprite({
   isRevealPhase,
   isDying,
   isMoving = false,
+  isLanding = false,
+  justHidden = false,
+  swayOffset = 0,
   onClick,
 }: UnitSpriteProps) {
   const isPlayer = piece.owner === "player";
-  const showWeapon = piece.owner === "player" || isRevealPhase || !piece.silhouette;
+  const showWeapon = !isDying && (piece.owner === "player" || isRevealPhase || !piece.silhouette);
   const roleFlag = piece.role === "flag" ? (isPlayer ? "/flag_red_nobg.png" : "/flag_blue_nobg.png") : null;
   const revealedRoleTitle = !piece.alive && piece.role === "flag" ? "Revealed flag" : piece.role === "decoy" && !piece.alive ? "Revealed decoy" : null;
   const baseLabel = piece.silhouette ? "Enemy silhouette" : `${piece.label}${piece.weaponIcon ? ` ${piece.weaponIcon}` : ""}`;
   const stateLabel = selected ? " Selected operative." : isValidTarget ? " Adjacent legal duel target." : "";
 
-  let outline = "none";
-  if (selected) outline = "3px solid var(--color-selected)";
-  else if (isValidTarget) outline = "3px solid var(--color-valid-target)";
+  const outline = isValidTarget && !selected ? "3px solid var(--color-valid-target)" : "none";
+  const className = [
+    isDying ? "piece-dying" : "",
+    selected ? "unit-selected" : "",
+    isLanding ? "unit-landing" : "",
+    !isDying && !isMoving && !selected && piece.owner === "player" && piece.alive ? "unit-idle-sway" : "",
+  ].filter(Boolean).join(" ");
+  const buttonStyle = {
+    position: "relative",
+    width: "var(--unit-size)",
+    height: "var(--unit-size)",
+    padding: 0,
+    border: "none",
+    background: "transparent",
+    cursor: isValidTarget ? "crosshair" : "pointer",
+    outline,
+    borderRadius: "var(--radius-sm)",
+    transform: isValidTarget && !selected ? "scale(1.06)" : "scale(1)",
+    transition: "transform var(--motion-fast), filter var(--motion-fast)",
+    filter: isValidTarget && !selected
+      ? "drop-shadow(0 0 8px var(--color-valid-target))"
+      : isMoving
+          ? "drop-shadow(0 4px 10px rgba(0,0,0,0.8)) brightness(1.2)"
+          : "drop-shadow(0 2px 4px rgba(0,0,0,0.5))",
+    animation: isDying ? "unitDie 0.5s ease forwards" : undefined,
+    "--sway-offset": swayOffset,
+  } as CSSProperties;
 
   return (
     <button
@@ -76,29 +107,9 @@ export function UnitSprite({
       data-owner={piece.owner}
       aria-label={`${baseLabel}${stateLabel}`}
       aria-pressed={selected}
-      className={isDying ? "piece-dying" : ""}
+      className={className}
       data-attackable={isValidTarget ? "true" : "false"}
-      style={{
-        position: "relative",
-        width: "var(--unit-size)",
-        height: "var(--unit-size)",
-        padding: 0,
-        border: "none",
-        background: "transparent",
-        cursor: isValidTarget ? "crosshair" : "pointer",
-        outline,
-        borderRadius: "var(--radius-sm)",
-        transform: selected ? "scale(1.12)" : isValidTarget ? "scale(1.06)" : "scale(1)",
-        transition: "transform var(--motion-fast), filter var(--motion-fast)",
-        filter: isValidTarget && !selected
-          ? "drop-shadow(0 0 8px var(--color-valid-target))"
-          : selected
-            ? "drop-shadow(0 0 10px white)"
-            : isMoving
-              ? "drop-shadow(0 4px 10px rgba(0,0,0,0.8)) brightness(1.2)"
-              : "drop-shadow(0 2px 4px rgba(0,0,0,0.5))",
-        animation: isDying ? "unitDie 0.5s ease forwards" : undefined,
-      }}
+      style={buttonStyle}
     >
       {isMoving ? (
         <div
@@ -110,13 +121,19 @@ export function UnitSprite({
           }}
         />
       ) : (
-        <img src={getSrc(piece)} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+        <img
+          src={isDying ? "/character_yellow_fallen_nobg.png" : getSrc(piece)}
+          alt=""
+          draggable={false}
+          style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", transition: isDying ? "none" : undefined }}
+        />
       )}
 
       {showWeapon && piece.weapon && WEAPON_ICON[piece.weapon] ? (
         <img
           src={WEAPON_ICON[piece.weapon]}
           alt={piece.weapon}
+          className={justHidden ? "weapon-hiding" : undefined}
           draggable={false}
           style={{
             position: "absolute",

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DuelOverlay } from "./DuelOverlay";
 import { PlayerNameLabel } from "./PlayerNameLabel";
 import { RefereePanel } from "./RefereePanel";
@@ -55,6 +55,14 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
     viewerOwner,
   } = useGame({ initialMatchId, token });
   const [visibleDuelKey, setVisibleDuelKey] = useState<string | null>(null);
+  const [landingPieceId, setLandingPieceId] = useState<string | null>(null);
+  const [movingPieceId, setMovingPieceId] = useState<string | null>(null);
+  const [echoCells, setEchoCells] = useState<Set<string>>(new Set());
+  const [showFlagCinematic, setShowFlagCinematic] = useState(false);
+  const [justHiddenEnemyWeapons, setJustHiddenEnemyWeapons] = useState(false);
+  const previousPositionsRef = useRef<Map<string, string>>(new Map());
+  const previousAliveRef = useRef<Map<string, { alive: boolean; cell: string }>>(new Map());
+  const previousPhaseRef = useRef<string | null>(null);
   const [showDebugLog, setShowDebugLog] = useState<boolean>(() => {
     if (typeof window === "undefined") {
       return true;
@@ -81,6 +89,15 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
         match.repick?.picksReceived?.includes(viewerRepickRole) &&
         (match.repick?.picksReceived?.length ?? 0) < 2,
     );
+  const deadPiecesByCell = useMemo(() => {
+    const cells = new Map<string, "flag" | "decoy">();
+    for (const piece of match?.board ?? []) {
+      if (!piece.alive && (piece.role === "flag" || piece.role === "decoy")) {
+        cells.set(`${piece.row}-${piece.col}`, piece.role);
+      }
+    }
+    return cells;
+  }, [match?.board]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -112,6 +129,73 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
     return () => window.clearTimeout(timeout);
   }, [duelKey, match?.duel, match?.phase, waitingForOpponentRepick]);
 
+  useEffect(() => {
+    if (!match) {
+      previousPositionsRef.current = new Map();
+      return;
+    }
+
+    const nextPositions = new Map<string, string>();
+    for (const piece of match.board) {
+      if (!piece.alive) continue;
+      const position = `${piece.row}-${piece.col}`;
+      nextPositions.set(piece.id, position);
+      const previous = previousPositionsRef.current.get(piece.id);
+      if (previous && previous !== position) {
+        setMovingPieceId(piece.id);
+        window.setTimeout(() => {
+          setMovingPieceId((current) => (current === piece.id ? null : current));
+          setLandingPieceId(piece.id);
+          window.setTimeout(() => {
+            setLandingPieceId((current) => (current === piece.id ? null : current));
+          }, 280);
+        }, 300);
+      }
+    }
+    previousPositionsRef.current = nextPositions;
+  }, [match]);
+
+  useEffect(() => {
+    if (match?.result && match.duel?.revealedRole === "flag") {
+      setShowFlagCinematic(true);
+      const timeout = window.setTimeout(() => setShowFlagCinematic(false), 900);
+      return () => window.clearTimeout(timeout);
+    }
+    setShowFlagCinematic(false);
+  }, [match?.result, match?.duel?.revealedRole]);
+
+  useEffect(() => {
+    if (!match) {
+      previousAliveRef.current = new Map();
+      previousPhaseRef.current = null;
+      return;
+    }
+
+    if (previousPhaseRef.current === "reveal" && match.phase === "player_turn") {
+      setJustHiddenEnemyWeapons(true);
+      window.setTimeout(() => setJustHiddenEnemyWeapons(false), 500);
+    }
+    previousPhaseRef.current = match.phase;
+
+    const nextAlive = new Map<string, { alive: boolean; cell: string }>();
+    for (const piece of match.board) {
+      const cell = `${piece.row}-${piece.col}`;
+      nextAlive.set(piece.id, { alive: piece.alive, cell });
+      const previous = previousAliveRef.current.get(piece.id);
+      if (previous?.alive && !piece.alive) {
+        setEchoCells((current) => new Set(current).add(previous.cell));
+        window.setTimeout(() => {
+          setEchoCells((current) => {
+            const next = new Set(current);
+            next.delete(previous.cell);
+            return next;
+          });
+        }, 700);
+      }
+    }
+    previousAliveRef.current = nextAlive;
+  }, [match]);
+
   useAudio(
     match
       ? {
@@ -120,6 +204,7 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
           duel: match.duel,
           result: match.result,
           showDuel: duelVisible,
+          revealSecondsLeft,
         }
       : null,
   );
@@ -194,7 +279,16 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
               </div>
               <div>
                 <span className="hud-label">Turn</span>
-                <strong>{turnLabel}</strong>
+                <strong>
+                  {turnLabel}
+                  {match.phase === "ai_turn" ? (
+                    <span className="thinking-indicator" aria-label="Claude thinking">
+                      <span className="think-dot">.</span>
+                      <span className="think-dot">.</span>
+                      <span className="think-dot">.</span>
+                    </span>
+                  ) : null}
+                </strong>
               </div>
               <RefereePanel phase={match.phase} currentTurn={match.currentTurn} showDuel={duelVisible} result={match.result} />
             </div>
@@ -215,23 +309,29 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
             {match.phase === "reveal" ? (
               <>
                 <p className="board-status__headline">Board locked during reveal.</p>
-                <p className="board-status__hint">{revealSecondsLeft}s left</p>
+                <p className="board-status__hint">
+                  <strong className={revealSecondsLeft <= 3 ? "reveal-timer--urgent" : ""}>
+                    {revealSecondsLeft}s left
+                  </strong>
+                </p>
               </>
             ) : null}
 
             <div className="nati-board-stage">
               <div className="nati-board-grid" data-testid="battle-board">
-                {boardCells.map((cell) => {
+                {boardCells.map((cell, index) => {
                   const moveTarget = legalMoveTargets.has(`${cell.row}-${cell.col}`);
                   const attackTarget = cell.piece ? legalAttackTargets.has(cell.piece.id) : false;
                   const selected = cell.piece?.id === selectedAttackerId;
+                  const cellKey = `${cell.row}-${cell.col}`;
+                  const deadRoleAtCell = deadPiecesByCell.get(cellKey);
                   const ownerTone =
                     cell.row >= 5 ? "nati-board-cell--aiZone" : cell.row <= 2 ? "nati-board-cell--playerZone" : "nati-board-cell--neutralZone";
 
                   return (
                     <div
-                      key={`${cell.row}-${cell.col}`}
-                      className={`nati-board-cell ${ownerTone} ${moveTarget ? "nati-board-cell--move" : ""} ${attackTarget ? "nati-board-cell--attack" : ""}`}
+                      key={cellKey}
+                      className={`nati-board-cell ${ownerTone} ${moveTarget ? "nati-board-cell--move" : ""} ${attackTarget ? "nati-board-cell--attack" : ""} ${echoCells.has(cellKey) ? "nati-board-cell--echo" : ""}`}
                     >
                       <span className="nati-board-cell__coords">{`R${cell.row} C${cell.col}`}</span>
                       {cell.piece ? (
@@ -242,20 +342,31 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
                             isValidTarget={attackTarget}
                             isRevealPhase={match.phase === "reveal"}
                             isDying={false}
-                            isMoving={false}
+                            isMoving={cell.piece.id === movingPieceId}
+                            isLanding={cell.piece.id === landingPieceId}
+                            justHidden={justHiddenEnemyWeapons && cell.piece.owner !== viewerOwner}
+                            swayOffset={index * 0.3}
                             onClick={() => onPieceClick(cell.piece!)}
                           />
                           <span className="nati-piece-label">{cell.piece.silhouette ? "Enemy silhouette" : cell.piece.label}</span>
                         </>
                       ) : (
-                        <button
-                          type="button"
-                          className={`nati-empty-target ${moveTarget ? "nati-empty-target--active" : ""}`}
-                          aria-label={`Empty cell row ${cell.row} col ${cell.col}`}
-                          onClick={() => onEmptyCellClick(cell.row, cell.col)}
-                        >
-                          {moveTarget ? "Move" : ""}
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            className={`nati-empty-target ${moveTarget ? "nati-empty-target--active" : ""}`}
+                            aria-label={`Empty cell row ${cell.row} col ${cell.col}`}
+                            onClick={() => onEmptyCellClick(cell.row, cell.col)}
+                          >
+                            {moveTarget ? "Move" : ""}
+                          </button>
+                          {deadRoleAtCell === "flag" ? (
+                            <div className="cell-role-badge cell-role-badge--flag" aria-label="Defeated flag">flag</div>
+                          ) : null}
+                          {deadRoleAtCell === "decoy" ? (
+                            <div className="cell-role-badge cell-role-badge--decoy" aria-label="Defeated decoy">decoy</div>
+                          ) : null}
+                        </>
                       )}
                     </div>
                   );
@@ -269,6 +380,14 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
                   repick={match.phase === "repick"}
                   onRepick={match.phase === "repick" ? (weapon) => void submitRepick(weapon) : undefined}
                 />
+              ) : null}
+
+              {showFlagCinematic ? (
+                <div className="board-end-overlay" data-testid="flag-cinematic">
+                  <div className="flag-death-text">
+                    {match.result?.winner === viewerOwner ? "FLAG CAPTURED" : "YOUR FLAG FELL"}
+                  </div>
+                </div>
               ) : null}
             </div>
 
