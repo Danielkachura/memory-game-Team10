@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DuelOverlay } from "./DuelOverlay";
 import { PlayerNameLabel } from "./PlayerNameLabel";
 import { RefereePanel } from "./RefereePanel";
@@ -7,6 +7,7 @@ import { Sidebar } from "./Sidebar";
 import { StartScreen } from "./StartScreen";
 import { UnitSprite } from "./UnitSprite";
 import { useAudio } from "../hooks/useAudio";
+import { useBoardAnimations } from "../hooks/useBoardAnimations";
 import { useGame, type MatchView, type UseGameOptions } from "../hooks/useGame";
 
 interface GameScreenProps extends UseGameOptions {
@@ -55,14 +56,7 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
     viewerOwner,
   } = useGame({ initialMatchId, token });
   const [visibleDuelKey, setVisibleDuelKey] = useState<string | null>(null);
-  const [landingPieceId, setLandingPieceId] = useState<string | null>(null);
-  const [movingPieceId, setMovingPieceId] = useState<string | null>(null);
-  const [echoCells, setEchoCells] = useState<Set<string>>(new Set());
   const [showFlagCinematic, setShowFlagCinematic] = useState(false);
-  const [justHiddenEnemyWeapons, setJustHiddenEnemyWeapons] = useState(false);
-  const previousPositionsRef = useRef<Map<string, string>>(new Map());
-  const previousAliveRef = useRef<Map<string, { alive: boolean; cell: string }>>(new Map());
-  const previousPhaseRef = useRef<string | null>(null);
   const [showDebugLog, setShowDebugLog] = useState<boolean>(() => {
     if (typeof window === "undefined") {
       return true;
@@ -71,6 +65,7 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
   });
 
   const duelKey = useMemo(() => buildDuelKey(match), [match]);
+  const { landingPieceId, movingPieceId, echoCells, justHiddenEnemyWeapons } = useBoardAnimations(match);
   const duelVisible = Boolean(match?.duel && visibleDuelKey && duelKey === visibleDuelKey);
   const topLabel = match?.players?.ai ?? (match?.mode === "pvp" ? "Blue Squad" : "Claude");
   const bottomLabel = match?.players?.player ?? "Red Squad";
@@ -130,32 +125,6 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
   }, [duelKey, match?.duel, match?.phase, waitingForOpponentRepick]);
 
   useEffect(() => {
-    if (!match) {
-      previousPositionsRef.current = new Map();
-      return;
-    }
-
-    const nextPositions = new Map<string, string>();
-    for (const piece of match.board) {
-      if (!piece.alive) continue;
-      const position = `${piece.row}-${piece.col}`;
-      nextPositions.set(piece.id, position);
-      const previous = previousPositionsRef.current.get(piece.id);
-      if (previous && previous !== position) {
-        setMovingPieceId(piece.id);
-        window.setTimeout(() => {
-          setMovingPieceId((current) => (current === piece.id ? null : current));
-          setLandingPieceId(piece.id);
-          window.setTimeout(() => {
-            setLandingPieceId((current) => (current === piece.id ? null : current));
-          }, 280);
-        }, 300);
-      }
-    }
-    previousPositionsRef.current = nextPositions;
-  }, [match]);
-
-  useEffect(() => {
     if (match?.result && match.duel?.revealedRole === "flag") {
       setShowFlagCinematic(true);
       const timeout = window.setTimeout(() => setShowFlagCinematic(false), 900);
@@ -163,38 +132,6 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
     }
     setShowFlagCinematic(false);
   }, [match?.result, match?.duel?.revealedRole]);
-
-  useEffect(() => {
-    if (!match) {
-      previousAliveRef.current = new Map();
-      previousPhaseRef.current = null;
-      return;
-    }
-
-    if (previousPhaseRef.current === "reveal" && match.phase === "player_turn") {
-      setJustHiddenEnemyWeapons(true);
-      window.setTimeout(() => setJustHiddenEnemyWeapons(false), 500);
-    }
-    previousPhaseRef.current = match.phase;
-
-    const nextAlive = new Map<string, { alive: boolean; cell: string }>();
-    for (const piece of match.board) {
-      const cell = `${piece.row}-${piece.col}`;
-      nextAlive.set(piece.id, { alive: piece.alive, cell });
-      const previous = previousAliveRef.current.get(piece.id);
-      if (previous?.alive && !piece.alive) {
-        setEchoCells((current) => new Set(current).add(previous.cell));
-        window.setTimeout(() => {
-          setEchoCells((current) => {
-            const next = new Set(current);
-            next.delete(previous.cell);
-            return next;
-          });
-        }, 700);
-      }
-    }
-    previousAliveRef.current = nextAlive;
-  }, [match]);
 
   useAudio(
     match
@@ -346,7 +283,11 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
                             isLanding={cell.piece.id === landingPieceId}
                             justHidden={justHiddenEnemyWeapons && cell.piece.owner !== viewerOwner}
                             swayOffset={index * 0.3}
-                            onClick={() => onPieceClick(cell.piece!)}
+                            onClick={() => {
+                              if (cell.piece) {
+                                onPieceClick(cell.piece);
+                              }
+                            }}
                           />
                           <span className="nati-piece-label">{cell.piece.silhouette ? "Enemy silhouette" : cell.piece.label}</span>
                         </>
@@ -453,7 +394,15 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
           </section>
 
           <aside className="panel nati-sidebar-shell">
-            <Sidebar phase={match.phase} revealTimer={revealSecondsLeft} stats={match.stats} match={match} difficulty={match.difficulty} viewerOwner={viewerOwner} />
+            <Sidebar
+              phase={match.phase}
+              revealTimer={revealSecondsLeft}
+              revealSeconds={match.revealSeconds}
+              stats={match.stats}
+              match={match}
+              difficulty={match.difficulty}
+              viewerOwner={viewerOwner}
+            />
           </aside>
         </section>
       </div>

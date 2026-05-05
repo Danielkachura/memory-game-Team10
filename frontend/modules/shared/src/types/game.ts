@@ -55,6 +55,9 @@ export interface MatchView {
     decoyAbsorbed: number;
   };
   revealEndsAt: number;
+  revealSeconds: number;
+  turnEndsAt: number | null;
+  turnSeconds: number;
   duel: DuelSummary | null;
   result: { winner: Owner; reason: string } | null;
   repick?: { attackerId: string; targetId: string; picksReceived?: string[] };

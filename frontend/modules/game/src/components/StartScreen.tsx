@@ -1,7 +1,15 @@
+import type { Difficulty } from "../hooks/useGame";
+
+interface DifficultyOption {
+  id: Difficulty;
+  label: string;
+  detail: string;
+}
+
 interface StartScreenProps {
-  difficulties: Array<{ id: string; label: string; detail: string }>;
-  selected: string;
-  onSelect: (difficulty: any) => void;
+  difficulties: DifficultyOption[];
+  selected: Difficulty;
+  onSelect: (difficulty: Difficulty) => void;
   onStart: () => void;
   loading: boolean;
 }

@@ -138,13 +138,14 @@ describe("Sprint 02 QA frontend scenarios", () => {
 
   it("QA-F5 shows revealed role banners only for flag and decoy", () => {
     const { rerender } = render(<DuelOverlay duel={duel({ revealedRole: "flag" })} visible />);
-    expect(screen.getByTestId("revealed-role-banner")).toHaveTextContent(/flag/i);
+    expect(screen.getByTestId("revealed-role-banner-flag")).toHaveTextContent(/flag/i);
 
     rerender(<DuelOverlay duel={duel({ revealedRole: "decoy" })} visible />);
-    expect(screen.getByTestId("revealed-role-banner")).toHaveTextContent(/decoy/i);
+    expect(screen.getByTestId("revealed-role-banner-decoy")).toHaveTextContent(/decoy/i);
 
     rerender(<DuelOverlay duel={duel({ revealedRole: "soldier" })} visible />);
-    expect(screen.queryByTestId("revealed-role-banner")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("revealed-role-banner-flag")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("revealed-role-banner-decoy")).not.toBeInTheDocument();
   });
 
   it("QA-F7 renders every event log entry including forced tie and decoy stalemate text", async () => {

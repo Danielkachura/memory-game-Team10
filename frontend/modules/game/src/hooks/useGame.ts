@@ -66,6 +66,8 @@ export interface MatchView {
     decoyAbsorbed: number;
   };
   revealEndsAt: number;
+  /** Total seconds allowed for reveal countdown. */
+  revealSeconds: number;
   /** Unix timestamp (seconds) when the current turn expires. Null during reveal. */
   turnEndsAt: number | null;
   /** Total seconds allowed per turn (constant, from server). */

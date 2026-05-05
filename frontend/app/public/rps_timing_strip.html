@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>RPS Animation Timing Strip</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #0f0c0a;
+  color: #fff4e4;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 13px;
+  min-height: 100vh;
+  padding: 20px;
+}
+h1 { font-size: 1.2rem; font-weight: 800; color: #f2cf88; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+.subtitle { color: #d6bea5; font-size: 0.75rem; margin-bottom: 18px; letter-spacing: 1px; }
+
+.phase-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.phase-tab {
+  padding: 6px 14px; border-radius: 999px;
+  border: 1px solid rgba(255,224,185,0.15);
+  background: rgba(255,255,255,0.04);
+  color: #d6bea5; cursor: pointer;
+  font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  transition: all 150ms ease;
+}
+.phase-tab.active { background: rgba(242,207,136,0.18); border-color: rgba(242,207,136,0.6); color: #f2cf88; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.68rem; color: #d6bea5; }
+.legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+.info-card { background: rgba(143,215,208,0.08); border: 1px solid rgba(143,215,208,0.2); border-radius: 14px; padding: 12px 16px; margin-bottom: 14px; }
+.info-card h3 { font-size: 0.82rem; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px; }
+.info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; }
+.info-row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid rgba(255,244,228,0.06); }
+.info-row span:first-child { color: #d6bea5; font-size: 0.7rem; }
+.info-row strong { color: #f2cf88; font-size: 0.72rem; text-align: left; }
+
+.playback-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.play-btn { padding: 7px 20px; border-radius: 999px; border: none; background: linear-gradient(135deg, #f2cf88, #8fd7d0); color: #1a0e08; font-weight: 800; font-size: 0.8rem; cursor: pointer; }
+.frame-counter { font-size: 0.8rem; color: #f2cf88; font-weight: 700; min-width: 90px; }
+.fps-info { color: #8fd7d0; font-size: 0.72rem; }
+input[type=range] { -webkit-appearance: none; height: 4px; border-radius: 2px; background: rgba(255,244,228,0.15); flex: 1; min-width: 120px; cursor: pointer; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #f2cf88; }
+
+.timeline-panel { background: linear-gradient(180deg, rgba(61,36,29,0.94), rgba(25,17,15,0.94)); border: 1px solid rgba(255,225,185,0.12); border-radius: 18px; padding: 16px; margin-bottom: 16px; overflow-x: auto; }
+.tl-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.tl-phase-badge { padding: 4px 12px; border-radius: 999px; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.tl-fps { color: #8fd7d0; font-size: 0.72rem; }
+
+.frame-ruler { display: flex; margin-bottom: 10px; padding-left: 110px; }
+.frame-tick { flex: 1; text-align: center; font-size: 0.6rem; color: rgba(255,244,228,0.35); border-left: 1px solid rgba(255,244,228,0.1); padding-top: 2px; }
+
+.track-row { display: flex; align-items: center; margin-bottom: 8px; }
+.track-label { width: 110px; min-width: 110px; font-size: 0.68rem; font-weight: 700; color: #d6bea5; letter-spacing: 0.06em; text-transform: uppercase; display: flex; align-items: center; gap: 5px; flex-shrink: 0; padding-right: 8px; }
+.track-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+.track-bar-area { height: 28px; position: relative; border-radius: 6px; background: rgba(255,255,255,0.03); }
+.seg { position: absolute; top: 50%; transform: translateY(-50%); height: 6px; border-radius: 3px; opacity: 0.6; }
+.kf { position: absolute; top: 50%; transform: translate(-50%, -50%) rotate(45deg); width: 11px; height: 11px; border: 2px solid rgba(255,255,255,0.9); border-radius: 2px; cursor: pointer; z-index: 2; }
+.kf:hover { outline: 2px solid white; }
+
+.kf-label { position: absolute; top: -22px; left: 50%; transform: translateX(-50%); font-size: 0.6rem; color: rgba(255,244,228,0.7); white-space: nowrap; pointer-events: none; display: none; }
+.kf:hover .kf-label { display: block; }
+
+.tracks-wrapper { position: relative; }
+.playhead-global { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(242,207,136,0.75); pointer-events: none; z-index: 5; }
+
+.section-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.18em; color: #8fd7d0; margin: 18px 0 8px; border-bottom: 1px solid rgba(143,215,208,0.15); padding-bottom: 4px; }
+
+.easing-ref { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.easing-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,224,185,0.1); border-radius: 10px; padding: 10px; }
+.easing-card strong { display: block; font-size: 0.72rem; color: #f2cf88; margin-bottom: 5px; }
+.easing-card code { font-size: 0.62rem; color: #8fd7d0; font-family: monospace; }
+.easing-card svg { display: block; margin: 6px auto 0; }
+</style>
+</head>
+<body>
+
+<h1>🎬 Animation Timing Strip — RPS Online</h1>
+<div class="subtitle">Rock Paper Scissors Online · Player Action Animations · Based on styles.css + public assets</div>
+
+<div class="phase-tabs" id="phaseTabs"></div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#f2cf88"></div> Scale / Transform</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#8fd7d0"></div> Opacity / Fade</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f08c7d"></div> Filter / Color</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#d5a4ff"></div> Position / Translate</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#9fdd8e"></div> Rotate / Special</div>
+  <div class="legend-item">◆ Keyframe (hover for value)</div>
+</div>
+
+<div class="info-card">
+  <h3 id="infoTitle" style="color:#f2cf88">בחר שלב אנימציה</h3>
+  <div class="info-grid" id="infoGrid"></div>
+</div>
+
+<div class="playback-row">
+  <button class="play-btn" id="playBtn">▶ Play</button>
+  <input type="range" id="scrubber" min="0" max="100" value="0">
+  <div class="frame-counter" id="frameCounter">F 0 / 0</div>
+  <div class="fps-info" id="fpsInfo">24 fps</div>
+</div>
+
+<div class="timeline-panel">
+  <div class="tl-header">
+    <span class="tl-phase-badge" id="phaseBadge">Phase</span>
+    <span class="tl-fps" id="tlFps">24 fps</span>
+  </div>
+  <div id="frameRulerWrap" style="padding-left:110px;">
+    <div class="frame-ruler" id="frameRuler"></div>
+  </div>
+  <div class="tracks-wrapper" id="tracksWrapper">
+    <div class="playhead-global" id="playheadGlobal" style="left:110px"></div>
+  </div>
+</div>
+
+<div class="section-title">📐 Easing Reference — Bezier Values Used</div>
+<div class="easing-ref">
+  <div class="easing-card">
+    <strong>ease-in-out (sine)</strong>
+    <code>0.42, 0, 0.58, 1</code>
+    <svg width="100" height="40" viewBox="0 0 100 40">
+      <path d="M5,35 C25,35 30,5 50,5 S75,35 95,5" fill="none" stroke="#8fd7d0" stroke-width="2"/>
+    </svg>
+  </div>
+  <div class="easing-card">
+    <strong>Spring (unitSelect)</strong>
+    <code>0.34, 1.56, 0.64, 1</code>
+    <svg width="100" height="40" viewBox="0 0 100 40">
+      <path d="M5,35 C20,35 25,-5 55,8 S80,12 95,5" fill="none" stroke="#f2cf88" stroke-width="2"/>
+    </svg>
+  </div>
+  <div class="easing-card">
+    <strong>ease-in (windUp)</strong>
+    <code>0.42, 0, 1, 1</code>
+    <svg width="100" height="40" viewBox="0 0 100 40">
+      <path d="M5,35 C5,35 30,34 95,5" fill="none" stroke="#f08c7d" stroke-width="2"/>
+    </svg>
+  </div>
+  <div class="easing-card">
+    <strong>ease-out (weaponReveal)</strong>
+    <code>0, 0, 0.58, 1</code>
+    <svg width="100" height="40" viewBox="0 0 100 40">
+      <path d="M5,35 C70,35 95,6 95,5" fill="none" stroke="#d5a4ff" stroke-width="2"/>
+    </svg>
+  </div>
+  <div class="easing-card">
+    <strong>ease-in-out (idle)</strong>
+    <code>default ease-in-out</code>
+    <svg width="100" height="40" viewBox="0 0 100 40">
+      <path d="M5,35 C20,35 30,5 50,5 S80,35 95,5" fill="none" stroke="#9fdd8e" stroke-width="2"/>
+    </svg>
+  </div>
+  <div class="easing-card">
+    <strong>Linear (heroJump)</strong>
+    <code>steps(4) — sprite</code>
+    <svg width="100" height="40" viewBox="0 0 100 40">
+      <polyline points="5,35 30,35 30,22 55,22 55,13 80,13 80,5 95,5" fill="none" stroke="#f2cf88" stroke-width="2"/>
+    </svg>
+  </div>
+</div>
+
+<script>
+const TRACK_W = 680;
+
+const PHASES = [
+  {
+    id:'idle', label:'😴 Idle Sway', fps:24, frames:58, color:'#8fd7d0', badgeBg:'rgba(143,215,208,0.18)',
+    info:{'אנימציה':'idleSway','משך':'2.4s · 58 frames','Easing':'ease-in-out','לולאה':'infinite','Class':'.unit-idle-sway','Delay':'--sway-offset * 1s','טריגר':'תמיד — יחידה ממתינה','נכסים':'character_*_idle_nobg.png'},
+    tracks:[
+      {label:'TRANSLATE Y',color:'#d5a4ff', kfs:[{f:0,v:'0px'},{f:17,v:'-2px'},{f:41,v:'-1px'},{f:58,v:'0px'}]},
+      {label:'ROTATE',color:'#9fdd8e', kfs:[{f:0,v:'0deg'},{f:17,v:'0.4deg'},{f:41,v:'-0.3deg'},{f:58,v:'0deg'}]}
+    ]
+  },
+  {
+    id:'select', label:'👆 Unit Select', fps:24, frames:5, color:'#f2cf88', badgeBg:'rgba(242,207,136,0.18)',
+    info:{'אנימציה':'unitSelect','משך':'220ms · 5 frames','Easing':'cubic-bezier(0.34,1.56,0.64,1)','Class':'.unit-selected','סוג':'forwards (once)','טריגר':'לחיצה על יחידה','אפקט נוסף':'outline 3px + drop-shadow 12px','צבע outline':'#fde68a'},
+    tracks:[
+      {label:'SCALE',color:'#f2cf88', kfs:[{f:0,v:'1'},{f:2,v:'1.22 ↑'},{f:3.5,v:'1.14'},{f:5,v:'1.12'}]},
+      {label:'ROTATE',color:'#9fdd8e', kfs:[{f:0,v:'0deg'},{f:2,v:'-2deg'},{f:3.5,v:'1deg'},{f:5,v:'0deg'}]},
+      {label:'OUTLINE',color:'#8fd7d0', kfs:[{f:0,v:'none'},{f:0.5,v:'3px solid gold'}]}
+    ]
+  },
+  {
+    id:'windup', label:'⚔️ Wind-Up', fps:24, frames:7, color:'#f08c7d', badgeBg:'rgba(240,140,125,0.18)',
+    info:{'אנימציה':'windUpPose','משך':'300ms · 7 frames','Easing':'ease-in (forwards)','Class':'.duel-windup img','גודל':'72×72px','טריגר':'תחילת דואל','אודיו':'battle_start.wav'},
+    tracks:[
+      {label:'SCALE',color:'#f2cf88', kfs:[{f:0,v:'1'},{f:3.5,v:'1.06'},{f:7,v:'1.08'}]},
+      {label:'ROTATE',color:'#9fdd8e', kfs:[{f:0,v:'0deg'},{f:3.5,v:'-10deg'},{f:7,v:'-14deg'}]},
+      {label:'TRANSLATE X',color:'#d5a4ff', kfs:[{f:0,v:'0px'},{f:3.5,v:'-4px'},{f:7,v:'-6px'}]}
+    ]
+  },
+  {
+    id:'reveal', label:'✨ Weapon Reveal', fps:24, frames:5, color:'#9fdd8e', badgeBg:'rgba(159,221,142,0.18)',
+    info:{'אנימציה':'weaponReveal','משך':'200ms · 5 frames','Easing':'cubic-bezier(0.34,1.56,0.64,1)','Class':'.weapon-reveal','טריגר':'גילוי נשק בדואל','אודיו':'rock/paper/scissors.wav','נכסים':'rock_nobg / paper_flat_nobg / scissors_nobg'},
+    tracks:[
+      {label:'OPACITY',color:'#8fd7d0', kfs:[{f:0,v:'0'},{f:3,v:'1'},{f:5,v:'1'}]},
+      {label:'SCALE',color:'#f2cf88', kfs:[{f:0,v:'0.4'},{f:3,v:'1.18 ⬆'},{f:5,v:'1'}]},
+      {label:'TRANSLATE Y',color:'#d5a4ff', kfs:[{f:0,v:'10px'},{f:3,v:'-4px'},{f:5,v:'0px'}]},
+      {label:'ROTATE',color:'#f08c7d', kfs:[{f:0,v:'-15deg'},{f:3,v:'4deg'},{f:5,v:'0deg'}]}
+    ]
+  },
+  {
+    id:'result', label:'🏆 Win / Lose', fps:24, frames:10, color:'#9fdd8e', badgeBg:'rgba(159,221,142,0.18)',
+    info:{'Win weapon':'weaponWin · 250ms','Lose weapon':'weaponLose · 250ms','Win char':'charWin · 400ms','Lose char':'charLose · 350ms','Tie':'tieShake + charTie','Win filter':'brightness(1.6) + gold shadow','Lose filter':'grayscale(1) + opacity 0.25','אודיו':'you_win.wav / you_lose.wav'},
+    tracks:[
+      {label:'WIN SCALE',color:'#9fdd8e', kfs:[{f:0,v:'1'},{f:3,v:'1.35 ★'},{f:6,v:'1.15'}]},
+      {label:'WIN BRIGHT',color:'#f2cf88', kfs:[{f:0,v:'100%'},{f:3,v:'160% ☀'},{f:6,v:'120%'}]},
+      {label:'LOSE SCALE',color:'#f08c7d', kfs:[{f:0,v:'1'},{f:6,v:'0.55 ↓'}]},
+      {label:'LOSE OPACITY',color:'#8fd7d0', kfs:[{f:0,v:'1'},{f:6,v:'0.25 💀'}]},
+      {label:'CHAR Y WIN',color:'#d5a4ff', kfs:[{f:0,v:'0px'},{f:2.5,v:'-12px'},{f:5,v:'-6px'},{f:7.5,v:'-10px'},{f:10,v:'0px'}]}
+    ]
+  },
+  {
+    id:'landing', label:'🦵 Unit Land', fps:24, frames:7, color:'#d5a4ff', badgeBg:'rgba(213,164,255,0.18)',
+    info:{'אנימציה':'unitLand','משך':'280ms · 7 frames','Easing':'ease-out (forwards)','Class':'.unit-landing','טריגר':'נחיתה על תא לוח','אודיו':'jump.wav + step.mp4','תיאור':'squash on impact then restore'},
+    tracks:[
+      {label:'SCALE',color:'#f2cf88', kfs:[{f:0,v:'1.1'},{f:3.8,v:'1.09'},{f:5.6,v:'0.94 ↓'},{f:7,v:'1.0'}]},
+      {label:'TRANSLATE Y',color:'#d5a4ff', kfs:[{f:0,v:'-7px'},{f:3.8,v:'0px'},{f:7,v:'0px'}]}
+    ]
+  },
+  {
+    id:'death', label:'💀 Unit Die', fps:24, frames:12, color:'#f08c7d', badgeBg:'rgba(240,140,125,0.18)',
+    info:{'אנימציה':'unitDie + weaponHide','unitDie משך':'~300ms','weaponHide משך':'500ms · 12f','Easing':'ease-in','Class':'.weapon-hiding','אפקט':'scale(0.7) + translateY + blur(2px)','טריגר':'יחידה מובסת בדואל'},
+    tracks:[
+      {label:'OPACITY',color:'#8fd7d0', kfs:[{f:0,v:'1'},{f:12,v:'0'}]},
+      {label:'SCALE',color:'#f2cf88', kfs:[{f:0,v:'1'},{f:12,v:'0.65'}]},
+      {label:'TRANSLATE Y',color:'#d5a4ff', kfs:[{f:0,v:'0px'},{f:7,v:'4px'},{f:12,v:'12px'}]},
+      {label:'BLUR',color:'#f08c7d', kfs:[{f:0,v:'0px'},{f:9,v:'1px'},{f:12,v:'2px'}]}
+    ]
+  },
+  {
+    id:'timer', label:'⏱ Timer Urgent', fps:24, frames:15, color:'#f08c7d', badgeBg:'rgba(240,140,125,0.18)',
+    info:{'אנימציה':'timerUrgent','משך':'600ms · 15 frames','Easing':'ease-in-out','לולאה':'infinite','Class':'.reveal-timer--urgent','צבע':'#fb7185 (danger)','טריגר':'טיימר < 3 שניות'},
+    tracks:[
+      {label:'OPACITY',color:'#8fd7d0', kfs:[{f:0,v:'1'},{f:7.5,v:'0.65 dim'},{f:15,v:'1'}]},
+      {label:'SCALE',color:'#f2cf88', kfs:[{f:0,v:'1'},{f:7.5,v:'1.08 ⚡'},{f:15,v:'1'}]}
+    ]
+  },
+  {
+    id:'decoy', label:'🛡 Decoy Pulse', fps:24, frames:17, color:'#d5a4ff', badgeBg:'rgba(213,164,255,0.18)',
+    info:{'אנימציה':'decoyShield','משך':'700ms · 17 frames','Easing':'ease-out','לולאה':'infinite','Class':'.decoy-shield-pulse','צבע':'rgba(213,164,255,0.65)','טריגר':'תא decoy מוצג','אפקט':'box-shadow ripple'},
+    tracks:[
+      {label:'BOX SHADOW',color:'#d5a4ff', kfs:[{f:0,v:'0px spread'},{f:12,v:'16px spread'},{f:17,v:'0px'}]},
+      {label:'SCALE',color:'#f2cf88', kfs:[{f:0,v:'1'},{f:12,v:'1.05'},{f:17,v:'1'}]}
+    ]
+  },
+  {
+    id:'flagdrop', label:'🚩 Flag Drop', fps:24, frames:18, color:'#f2cf88', badgeBg:'rgba(242,207,136,0.18)',
+    info:{'אנימציה':'flagDrop + boardDim','flagDrop delay':'200ms','משך':'350ms · 8 frames (+ 250ms dim)','Easing':'cubic-bezier(0.22,1,0.36,1)','Class':'.flag-death-text','נכסים':'flag_blue_nobg / flag_red_nobg','טריגר':'סוף משחק — דגל נפל'},
+    tracks:[
+      {label:'OVERLAY OPC',color:'#8fd7d0', kfs:[{f:0,v:'0'},{f:6,v:'1 (dim)'}]},
+      {label:'FLAG OPACITY',color:'#f2cf88', kfs:[{f:5,v:'0'},{f:10,v:'1'},{f:18,v:'1'}]},
+      {label:'FLAG Y',color:'#d5a4ff', kfs:[{f:5,v:'-40px'},{f:11,v:'5px bounce'},{f:18,v:'0px'}]},
+      {label:'FLAG SCALE',color:'#9fdd8e', kfs:[{f:5,v:'0.8'},{f:11,v:'1.06'},{f:18,v:'1'}]}
+    ]
+  },
+  {
+    id:'herojump', label:'🕹 Hero Jump', fps:24, frames:21, color:'#f2cf88', badgeBg:'rgba(242,207,136,0.18)',
+    info:{'אנימציה':'heroJump','משך':'500ms · 12 frames','Easing':'steps(4) — sprite','Class':'.hero-jump-sprite','נכסים':'hero_blue_jump_sprites.jpg / hero_red_jump_sprites.png','שיטה':'background-position 0%→100%','לולאה':'infinite','תיאור':'4 sprite frames, stepped'},
+    tracks:[
+      {label:'BG POSITION',color:'#f2cf88', kfs:[{f:0,v:'0% (frame1)'},{f:5,v:'33% (frame2)'},{f:10,v:'66% (frame3)'},{f:15,v:'100% (frame4)'},{f:21,v:'0% (loop)'}]},
+      {label:'OPACITY',color:'#8fd7d0', kfs:[{f:0,v:'1'},{f:21,v:'1'}]}
+    ]
+  }
+];
+
+let current = PHASES[0];
+let frame = 0;
+let playing = false;
+let rafId = null;
+let t0 = null;
+
+// Build tabs
+const tabsEl = document.getElementById('phaseTabs');
+PHASES.forEach((ph, i) => {
+  const btn = document.createElement('button');
+  btn.className = 'phase-tab' + (i === 0 ? ' active' : '');
+  btn.textContent = ph.label;
+  btn.dataset.i = i;
+  btn.onclick = () => {
+    stopPlay();
+    current = ph;
+    frame = 0;
+    document.querySelectorAll('.phase-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  };
+  tabsEl.appendChild(btn);
+});
+
+function stopPlay() {
+  playing = false;
+  if (rafId) cancelAnimationFrame(rafId);
+  document.getElementById('playBtn').textContent = '▶ Play';
+}
+
+function render() {
+  const ph = current;
+  // Info
+  document.getElementById('infoTitle').textContent = ph.label;
+  document.getElementById('infoTitle').style.color = ph.color;
+  const grid = document.getElementById('infoGrid');
+  grid.innerHTML = '';
+  Object.entries(ph.info).forEach(([k,v]) => {
+    const r = document.createElement('div'); r.className = 'info-row';
+    r.innerHTML = `<span>${k}</span><strong>${v}</strong>`;
+    grid.appendChild(r);
+  });
+
+  // Badge
+  document.getElementById('phaseBadge').textContent = ph.label;
+  document.getElementById('phaseBadge').style.background = ph.badgeBg;
+  document.getElementById('phaseBadge').style.color = ph.color;
+  document.getElementById('tlFps').textContent = `${ph.fps} fps · ${ph.frames} frames · ${(ph.frames/ph.fps).toFixed(2)}s`;
+  document.getElementById('fpsInfo').textContent = ph.fps + ' fps';
+
+  // Scrubber
+  const sc = document.getElementById('scrubber');
+  sc.max = ph.frames; sc.value = 0;
+
+  // Ruler
+  const ruler = document.getElementById('frameRuler');
+  ruler.innerHTML = '';
+  const ticks = Math.min(ph.frames + 1, 20);
+  const step = Math.max(1, Math.ceil(ph.frames / (ticks - 1)));
+  ruler.style.display = 'flex';
+  for (let i = 0; i < ticks; i++) {
+    const f = Math.min(i * step, ph.frames);
+    const t = document.createElement('div');
+    t.className = 'frame-tick';
+    t.textContent = Math.round(f);
+    t.style.flex = '1';
+    ruler.appendChild(t);
+  }
+
+  // Tracks
+  const wrapper = document.getElementById('tracksWrapper');
+  const ph2 = document.getElementById('playheadGlobal');
+  wrapper.innerHTML = '';
+  wrapper.appendChild(ph2);
+  ph2.style.left = '110px';
+
+  ph.tracks.forEach(track => {
+    const row = document.createElement('div');
+    row.className = 'track-row';
+    const lbl = document.createElement('div');
+    lbl.className = 'track-label';
+    const dot = document.createElement('div');
+    dot.className = 'track-dot'; dot.style.background = track.color;
+    lbl.appendChild(dot);
+    lbl.appendChild(document.createTextNode(track.label));
+    row.appendChild(lbl);
+
+    const area = document.createElement('div');
+    area.className = 'track-bar-area';
+    area.style.width = TRACK_W + 'px';
+
+    // Segments
+    for (let ki = 0; ki < track.kfs.length - 1; ki++) {
+      const a = track.kfs[ki], b = track.kfs[ki+1];
+      const x0 = (a.f / ph.frames) * TRACK_W;
+      const x1 = (b.f / ph.frames) * TRACK_W;
+      const seg = document.createElement('div');
+      seg.className = 'seg';
+      seg.style.left = x0 + 'px';
+      seg.style.width = (x1 - x0) + 'px';
+      seg.style.background = track.color;
+      area.appendChild(seg);
+    }
+
+    // Keyframes
+    track.kfs.forEach(kf => {
+      const x = (kf.f / ph.frames) * TRACK_W;
+      const d = document.createElement('div');
+      d.className = 'kf';
+      d.style.left = x + 'px';
+      d.style.background = track.color;
+      const tip = document.createElement('div');
+      tip.className = 'kf-label';
+      tip.textContent = `F${Math.round(kf.f)}: ${kf.v}`;
+      d.appendChild(tip);
+      area.appendChild(d);
+    });
+
+    row.appendChild(area);
+    wrapper.appendChild(row);
+  });
+
+  updatePlayhead(0);
+}
+
+function updatePlayhead(f) {
+  const ph = current;
+  const pct = f / ph.frames;
+  const x = 110 + pct * TRACK_W;
+  document.getElementById('playheadGlobal').style.left = x + 'px';
+  document.getElementById('frameCounter').textContent = `F ${Math.round(f)} / ${ph.frames}`;
+  document.getElementById('scrubber').value = f;
+}
+
+document.getElementById('scrubber').oninput = e => {
+  frame = parseFloat(e.target.value);
+  updatePlayhead(frame);
+};
+
+document.getElementById('playBtn').onclick = () => {
+  if (playing) { stopPlay(); return; }
+  playing = true;
+  document.getElementById('playBtn').textContent = '⏸ Pause';
+  if (frame >= current.frames) frame = 0;
+  t0 = null;
+  const durMs = (current.frames / current.fps) * 1000;
+  function step(ts) {
+    if (!t0) t0 = ts;
+    const elapsed = ts - t0;
+    const t = (elapsed % durMs) / durMs;
+    frame = t * current.frames;
+    updatePlayhead(frame);
+    if (playing) rafId = requestAnimationFrame(step);
+  }
+  rafId = requestAnimationFrame(step);
+};
+
+render();
+</script>
+</body>
+</html>

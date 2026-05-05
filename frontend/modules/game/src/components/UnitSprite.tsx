@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { VisiblePiece } from "../hooks/useGame";
+import type { VisiblePiece, Weapon } from "../hooks/useGame";
 
 interface UnitSpriteProps {
   piece: VisiblePiece;
@@ -14,24 +14,25 @@ interface UnitSpriteProps {
   onClick: () => void;
 }
 
-const PLAYER_IMG: Record<string, string> = {
+const PLAYER_IMG: Record<Weapon, string> = {
   rock: "/character_red_rock_nobg.png",
   paper: "/character_red_paper_nobg.png",
-  scissors: "/logo_rps_online_nobg.png",
-  flag: "/character_red_flag_nobg.png",
-  idle: "/character_red_idle_nobg.png",
+  scissors: "/character_red_scissors_nobg.png",
 };
 
-const CPU_IMG: Record<string, string> = {
-  hidden: "/character_blue_front_nobg.png",
+const CPU_IMG: Record<Weapon, string> = {
   rock: "/character_blue_idle_nobg.png",
   paper: "/character_blue_idle_nobg.png",
   scissors: "/character_blue_scissors_nobg.png",
-  flag: "/character_blue_flag_nobg.png",
-  idle: "/character_blue_idle_nobg.png",
 };
 
-const WEAPON_ICON: Record<string, string> = {
+const PLAYER_FLAG_IMG = "/character_red_flag_nobg.png";
+const PLAYER_IDLE_IMG = "/character_red_idle_nobg.png";
+const CPU_HIDDEN_IMG = "/character_blue_front_nobg.png";
+const CPU_FLAG_IMG = "/character_blue_flag_nobg.png";
+const CPU_IDLE_IMG = "/character_blue_idle_nobg.png";
+
+const WEAPON_ICON: Record<Weapon, string> = {
   rock: "/rock_nobg.png",
   paper: "/paper_flat_nobg.png",
   scissors: "/scissors_nobg.png",
@@ -39,12 +40,12 @@ const WEAPON_ICON: Record<string, string> = {
 
 function getSrc(piece: VisiblePiece): string {
   if (piece.owner === "player") {
-    if (piece.role === "flag") return PLAYER_IMG.flag;
-    return (piece.weapon && PLAYER_IMG[piece.weapon]) ?? PLAYER_IMG.idle;
+    if (piece.role === "flag") return PLAYER_FLAG_IMG;
+    return (piece.weapon && PLAYER_IMG[piece.weapon]) ?? PLAYER_IDLE_IMG;
   }
-  if (piece.silhouette) return CPU_IMG.hidden;
-  if (piece.role === "flag") return CPU_IMG.flag;
-  return (piece.weapon && CPU_IMG[piece.weapon]) ?? CPU_IMG.idle;
+  if (piece.silhouette) return CPU_HIDDEN_IMG;
+  if (piece.role === "flag") return CPU_FLAG_IMG;
+  return (piece.weapon && CPU_IMG[piece.weapon]) ?? CPU_IDLE_IMG;
 }
 
 const JUMP_SHEET: Record<string, string> = {

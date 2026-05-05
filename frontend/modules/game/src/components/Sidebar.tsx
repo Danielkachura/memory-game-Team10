@@ -7,6 +7,7 @@ type DuelSummary = NonNullable<MatchView["duel"]>;
 interface SidebarProps {
   phase: Phase;
   revealTimer: number;
+  revealSeconds?: number;
   stats: MatchView["stats"];
   match: MatchView;
   difficulty: Difficulty;
@@ -33,7 +34,7 @@ const WEAPON_EMOJI: Record<Weapon, string> = {
   scissors: "S",
 };
 
-export function Sidebar({ phase, revealTimer, stats, match, difficulty, viewerOwner }: SidebarProps) {
+export function Sidebar({ phase, revealTimer, revealSeconds = REVEAL_DURATION_SECONDS, stats, match, difficulty, viewerOwner }: SidebarProps) {
   const info = PHASE_INFO[phase] ?? { text: "...", color: "var(--color-text-muted)" };
   const aliveAi = match.board.filter((piece) => piece.owner === "ai" && piece.alive).length;
   const alivePlayer = match.board.filter((piece) => piece.owner === "player" && piece.alive).length;
@@ -101,7 +102,7 @@ export function Sidebar({ phase, revealTimer, stats, match, difficulty, viewerOw
         </div>
       )}
 
-      {phase === "reveal" ? <RevealTimer seconds={revealTimer} /> : <YinYangCircle />}
+      {phase === "reveal" ? <RevealTimer seconds={revealTimer} totalSeconds={revealSeconds} /> : <YinYangCircle />}
 
       <div
         style={{
@@ -239,8 +240,9 @@ function DuelLogEntry({ duel }: { duel: DuelSummary }) {
   );
 }
 
-function RevealTimer({ seconds }: { seconds: number }) {
-  const pct = (seconds / REVEAL_DURATION_SECONDS) * 100;
+function RevealTimer({ seconds, totalSeconds = REVEAL_DURATION_SECONDS }: { seconds: number; totalSeconds?: number }) {
+  const safeTotal = Math.max(totalSeconds, 1);
+  const pct = Math.min(Math.max(seconds / safeTotal, 0), 1) * 100;
   const radius = 42;
   const circumference = 2 * Math.PI * radius;
   const dash = (pct / 100) * circumference;

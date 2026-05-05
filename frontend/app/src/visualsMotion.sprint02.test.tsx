@@ -143,11 +143,11 @@ describe("visuals and motion sprint 02", () => {
     expect(styles()).toContain("@keyframes charTie");
   });
 
-  it("VM-08 supports landing class and minimum 300ms movement timing in GameScreen", () => {
+  it("VM-08 supports landing class and minimum 300ms movement timing in board animations", () => {
     render(<UnitSprite piece={playerPiece()} selected={false} isValidTarget={false} isRevealPhase={false} isDying={false} isLanding onClick={() => {}} />);
     expect(screen.getByRole("button")).toHaveClass("unit-landing");
     expect(styles()).toContain("@keyframes unitLand");
-    expect(source("../../modules/game/src/components/GameScreen.tsx")).toContain("300");
+    expect(source("../../modules/game/src/hooks/useBoardAnimations.ts")).toContain("300");
   });
 
   it("VM-09 swaps to fallen pose while dying and defines cell echo", () => {

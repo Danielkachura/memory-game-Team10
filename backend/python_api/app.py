@@ -353,6 +353,7 @@ def build_player_view(match_state: dict[str, Any], viewer: Owner = "player") -> 
         "board": board,
         "stats": stats_view(match_state),
         "revealEndsAt": match_state["reveal_ends_at"],
+        "revealSeconds": int(match_state["reveal_ends_at"] - match_state["started_at"]),
         # Turn timer — always sent so frontend can show countdown.
         "turnEndsAt": match_state.get("turn_ends_at"),
         "turnSeconds": TURN_SECONDS,

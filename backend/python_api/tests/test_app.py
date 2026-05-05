@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 import unittest
 from unittest.mock import patch
 
@@ -48,6 +49,95 @@ class PythonApiTests(unittest.TestCase):
         self.assertEqual(payload["phase"], "player_turn")
         enemy_pieces = [piece for piece in payload["board"] if piece["owner"] == "ai" and piece["alive"]]
         self.assertTrue(all(piece["weapon"] is None for piece in enemy_pieces))
+
+    def test_turn_ends_at_is_set_after_reveal_complete(self) -> None:
+        create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()
+
+        response = self.client.post(
+            f"/api/match/{create_payload['matchId']}/reveal/complete",
+            json={"confirmed": True},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["phase"], "player_turn")
+        self.assertEqual(payload["turnSeconds"], battle_app.TURN_SECONDS)
+        self.assertIsNotNone(payload["turnEndsAt"])
+        self.assertGreater(payload["turnEndsAt"], time.time())
+
+    def test_turn_timer_skips_player_turn_on_expired_attack(self) -> None:
+        create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()
+        match_id = create_payload["matchId"]
+        self.client.post(f"/api/match/{match_id}/reveal/complete", json={"confirmed": True})
+        match_state = battle_app.MATCHES[match_id]
+        match_state["turn_ends_at"] = time.time() - 1
+        player_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "player")
+        ai_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "ai")
+
+        response = self.client.post(
+            f"/api/match/{match_id}/turn/player-attack",
+            json={"attackerId": player_piece["id"], "targetId": ai_piece["id"]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["phase"], "ai_turn")
+        self.assertEqual(payload["currentTurn"], "ai")
+        self.assertIsNone(payload["duel"])
+        self.assertTrue(any("Turn timeout:" in entry["message"] for entry in payload["eventLog"]))
+
+    def test_turn_ends_at_resets_after_player_move(self) -> None:
+        create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()
+        match_id = create_payload["matchId"]
+        self.client.post(f"/api/match/{match_id}/reveal/complete", json={"confirmed": True})
+        match_state = battle_app.MATCHES[match_id]
+        player_piece = next(
+            piece for piece in match_state["pieces"] if piece["owner"] == "player" and piece["row"] == 2 and piece["col"] == 1
+        )
+        match_state["turn_ends_at"] = time.time() + 1
+
+        response = self.client.post(
+            f"/api/match/{match_id}/turn/player-move",
+            json={"pieceId": player_piece["id"], "targetRow": 3, "targetCol": 1},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["phase"], "ai_turn")
+        self.assertGreater(payload["turnEndsAt"], time.time() + battle_app.TURN_SECONDS - 1)
+
+    def test_turn_timeout_during_repick_cancels_pending_duel(self) -> None:
+        create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()
+        match_id = create_payload["matchId"]
+        self.client.post(f"/api/match/{match_id}/reveal/complete", json={"confirmed": True})
+        match_state = battle_app.MATCHES[match_id]
+
+        player_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "player")
+        ai_piece = next(piece for piece in match_state["pieces"] if piece["owner"] == "ai")
+        player_piece.update({"row": 4, "col": 1, "weapon": "rock"})
+        ai_piece.update({"row": 5, "col": 1, "weapon": "rock"})
+
+        tie_response = self.client.post(
+            f"/api/match/{match_id}/turn/player-attack",
+            json={"attackerId": player_piece["id"], "targetId": ai_piece["id"]},
+        )
+        self.assertEqual(tie_response.status_code, 200)
+        self.assertEqual(tie_response.json()["phase"], "repick")
+        self.assertIsNotNone(match_state["pending_repick"])
+
+        match_state["turn_ends_at"] = time.time() - 1
+        response = self.client.post(
+            f"/api/match/{match_id}/turn/tie-repick",
+            json={"weapon": "paper"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["phase"], "ai_turn")
+        self.assertEqual(payload["currentTurn"], "ai")
+        self.assertIsNone(match_state["pending_repick"])
+        self.assertIsNone(payload["duel"])
+        self.assertTrue(any("Turn timeout:" in entry["message"] for entry in payload["eventLog"]))
 
     def test_dead_enemy_piece_reveals_role_in_board_payload(self) -> None:
         create_payload = self.client.post("/api/match/create", json={"difficulty": "medium"}).json()

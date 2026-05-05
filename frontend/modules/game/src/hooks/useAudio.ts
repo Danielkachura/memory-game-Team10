@@ -100,29 +100,34 @@ export function useAudio(state: AudioState | null) {
       playSound("battle_start.wav.m4a", 0.7);
     }
     if (state.showDuel && state.duel?.attackerWeapon) {
-      const timer = window.setTimeout(() => {
+      const timers: ReturnType<typeof window.setTimeout>[] = [];
+      timers.push(window.setTimeout(() => {
         const attackerWeapon = state.duel?.attackerWeapon;
         const defenderWeapon = state.duel?.defenderWeapon;
         if (attackerWeapon === "rock") playSound("rock.wav.mp4", 0.8);
         if (attackerWeapon === "paper") playSound("paper.wav.mp4", 0.8);
         if (attackerWeapon === "scissors") playSound("scissors.wav.mp4", 0.8);
 
-        window.setTimeout(() => {
+        timers.push(window.setTimeout(() => {
           if (defenderWeapon === "rock") playSound("rock.wav.mp4", 0.6);
           if (defenderWeapon === "paper") playSound("paper.wav.mp4", 0.6);
           if (defenderWeapon === "scissors") playSound("scissors.wav.mp4", 0.6);
-        }, 50);
-      }, 300);
+        }, 50));
+      }, 300));
 
       if (state.duel.winner === "attacker" && state.duel.attackerId?.startsWith("player")) {
-        window.setTimeout(() => playSound("jump.wav.mp4", 0.8), 450);
+        timers.push(window.setTimeout(() => playSound("jump.wav.mp4", 0.8), 450));
       }
 
       if (state.duel.tie) {
         playSound("shuffle.wav.mp4", 0.7);
       }
 
-      return () => window.clearTimeout(timer);
+      return () => {
+        for (const timer of timers) {
+          window.clearTimeout(timer);
+        }
+      };
     }
     if (state.result?.winner === "player") {
       playSound("you_win.wav.mp4", 0.9);
