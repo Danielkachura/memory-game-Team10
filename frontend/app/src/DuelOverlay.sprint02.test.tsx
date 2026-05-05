@@ -34,4 +34,26 @@ describe("DuelOverlay Sprint 02 regression", () => {
     expect(interfaceBody).toContain("attackerId: string");
     expect(interfaceBody).toContain("defenderId: string");
   });
+
+  it("shows a prominent banner when a flag role is revealed", () => {
+    render(
+      <DuelOverlay
+        visible
+        duel={{
+          attackerId: "player-123",
+          attackerName: "Rock Soldier",
+          attackerWeapon: "rock",
+          defenderId: "ai-456",
+          defenderName: "Scissors Flag",
+          defenderWeapon: "scissors",
+          winner: "attacker",
+          tie: false,
+          decoyAbsorbed: false,
+          revealedRole: "flag",
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/FLAG CAPTURED/i)).toBeInTheDocument();
+  });
 });
