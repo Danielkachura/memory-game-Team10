@@ -17,6 +17,7 @@ Use these role skills directly in the CLI:
 - `$memory-game-security-reviewer`
 - `$memory-game-founder-support`
 - `$memory-game-review`
+- `$memory-game-visuals-motion`
 
 Example:
 
@@ -24,5 +25,7 @@ Example:
 Use $memory-game-cto at .codex/skills/memory-game-cto to review the architecture for a hint-system change
 Use $memory-game-dev-frontend at .codex/skills/memory-game-dev-frontend to implement a win-screen update
 Use $memory-game-qa at .codex/skills/memory-game-qa to verify the board flow
+Use $memory-game-visuals-motion at .codex/skills/memory-game-visuals-motion to implement VM-05 duel wind-up animation
+Use $memory-game-visuals-motion at .codex/skills/memory-game-visuals-motion to wire all sounds in useAudio.ts
+Use $memory-game-visuals-motion at .codex/skills/memory-game-visuals-motion to implement the flag death cinematic
 ```
-

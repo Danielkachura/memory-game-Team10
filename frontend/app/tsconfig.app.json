@@ -18,6 +18,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
+      "react": ["node_modules/@types/react/index.d.ts"],
+      "react/jsx-runtime": ["node_modules/@types/react/jsx-runtime.d.ts"],
       "@shared": ["../modules/shared/src/index.ts"],
       "@shared/*": ["../modules/shared/src/*"],
       "@game": ["../modules/game/src/index.ts"],
@@ -30,11 +32,7 @@
     "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]
   },
   "include": [
-    "src",
-    "../modules/ai/**/*.ts",
-    "../modules/ai/**/*.tsx",
-    "../modules/**/*.ts",
-    "../modules/**/*.tsx"
+    "src"
   ],
-  "exclude": ["../modules/**/tests/**", "../../tests/**"]
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "../modules/**/tests/**", "../../tests/**"]
 }

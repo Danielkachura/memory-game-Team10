@@ -1,9 +1,15 @@
-import { GameSetup } from "./GameSetup";
+import type { Difficulty } from "../hooks/useGame";
+
+interface DifficultyOption {
+  id: Difficulty;
+  label: string;
+  detail: string;
+}
 
 interface StartScreenProps {
-  difficulties: Array<{ id: string; label: string; detail: string }>;
-  selected: string;
-  onSelect: (difficulty: any) => void;
+  difficulties: DifficultyOption[];
+  selected: Difficulty;
+  onSelect: (difficulty: Difficulty) => void;
   onStart: () => void;
   loading: boolean;
 }
@@ -31,7 +37,7 @@ export function StartScreen({ difficulties, selected, onSelect, onStart, loading
             ))}
           </div>
           <button type="button" className="primary-button" onClick={onStart} disabled={loading}>
-            {loading ? "Working..." : "Start match"}
+            {loading ? "Working..." : "Start Match"}
           </button>
         </section>
       </div>

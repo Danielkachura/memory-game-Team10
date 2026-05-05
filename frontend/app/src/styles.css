@@ -710,6 +710,295 @@ textarea:focus-visible {
   }
 }
 
+@keyframes idleSway {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  30% { transform: translateY(-2px) rotate(0.4deg); }
+  70% { transform: translateY(-1px) rotate(-0.3deg); }
+}
+
+.unit-idle-sway {
+  animation: idleSway 2.4s ease-in-out infinite;
+  animation-delay: calc(var(--sway-offset, 0) * 1s);
+}
+
+@keyframes unitSelect {
+  0% { transform: scale(1) rotate(0deg); }
+  40% { transform: scale(1.22) rotate(-2deg); }
+  70% { transform: scale(1.14) rotate(1deg); }
+  100% { transform: scale(1.12) rotate(0deg); }
+}
+
+.unit-selected {
+  animation: unitSelect 220ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  outline: 3px solid var(--color-selected) !important;
+  filter: drop-shadow(0 0 12px rgba(253, 230, 138, 0.8)) !important;
+}
+
+@keyframes windUpPose {
+  0% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.06) rotate(-10deg) translateX(-4px); }
+  100% { transform: scale(1.08) rotate(-14deg) translateX(-6px); }
+}
+
+@keyframes weaponReveal {
+  0% { opacity: 0; transform: scale(0.4) translateY(10px) rotate(-15deg); }
+  60% { opacity: 1; transform: scale(1.18) translateY(-4px) rotate(4deg); }
+  100% { opacity: 1; transform: scale(1) translateY(0) rotate(0deg); }
+}
+
+.duel-windup {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.duel-windup img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  animation: windUpPose 300ms ease-in forwards;
+}
+
+.duel-vs-text {
+  font-family: var(--font-heading);
+  color: var(--color-warning);
+  font-size: 2rem;
+}
+
+.weapon-reveal {
+  animation: weaponReveal 200ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes weaponWin {
+  0% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.35); filter: brightness(1.6) drop-shadow(0 0 14px gold); }
+  100% { transform: scale(1.15); filter: brightness(1.2) drop-shadow(0 0 6px gold); }
+}
+
+@keyframes weaponLose {
+  0% { transform: scale(1); opacity: 1; filter: none; }
+  100% { transform: scale(0.55) translateY(8px); opacity: 0.25; filter: grayscale(1); }
+}
+
+@keyframes tieShake {
+  0%, 100% { transform: translateX(0) scale(1); }
+  25% { transform: translateX(-5px) scale(1.1); }
+  75% { transform: translateX(5px) scale(1.1); }
+}
+
+.weapon-winner {
+  animation: weaponWin 250ms ease-out forwards;
+}
+
+.weapon-loser {
+  animation: weaponLose 250ms ease-in forwards;
+}
+
+.tie-divider--shake {
+  animation: tieShake 300ms ease;
+}
+
+@keyframes charWin {
+  0% { transform: translateY(0px) scale(1); }
+  25% { transform: translateY(-12px) scale(1.12); }
+  50% { transform: translateY(-6px) scale(1.08); }
+  75% { transform: translateY(-10px) scale(1.1); }
+  100% { transform: translateY(0px) scale(1); }
+}
+
+@keyframes charLose {
+  0% { transform: rotate(0deg) translateX(0); }
+  20% { transform: rotate(-4deg) translateX(-3px); }
+  50% { transform: rotate(3deg) translateX(2px); }
+  80% { transform: rotate(-2deg) translateX(-1px); }
+  100% { transform: rotate(0deg) translateX(0); }
+}
+
+@keyframes charTie {
+  0%, 100% { transform: rotate(0deg); }
+  30% { transform: rotate(-6deg); }
+  70% { transform: rotate(6deg); }
+}
+
+.duel-reactions {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+}
+
+.char-reaction--win {
+  animation: charWin 400ms ease-in-out;
+}
+
+.char-reaction--lose {
+  animation: charLose 350ms ease-out;
+}
+
+.char-reaction--tie {
+  animation: charTie 400ms ease-in-out;
+}
+
+@keyframes unitLand {
+  0% { transform: scale(1.1) translateY(-7px); }
+  55% { transform: scale(1.09) translateY(0px); }
+  80% { transform: scale(0.94) translateY(0px); }
+  100% { transform: scale(1) translateY(0px); }
+}
+
+.unit-landing {
+  animation: unitLand 280ms ease-out forwards;
+}
+
+@keyframes cellEcho {
+  0% { box-shadow: inset 0 0 0 2px rgba(251, 113, 133, 0.7), 0 0 14px rgba(251, 113, 133, 0.4); }
+  100% { box-shadow: inset 0 0 0 2px transparent; }
+}
+
+.nati-board-cell--echo {
+  animation: cellEcho 700ms ease-out forwards;
+}
+
+@keyframes badgeReveal {
+  0% { opacity: 0; transform: scale(0.5) translateY(5px); }
+  100% { opacity: 1; transform: scale(1) translateY(0px); }
+}
+
+.cell-role-badge {
+  position: absolute;
+  inset: auto auto 12px 50%;
+  transform: translateX(-50%);
+  font-size: 1.4rem;
+  animation: badgeReveal 200ms ease-out forwards;
+  pointer-events: none;
+}
+
+.cell-role-badge--flag {
+  color: var(--color-danger);
+  filter: drop-shadow(0 0 6px rgba(251, 113, 133, 0.8));
+}
+
+.cell-role-badge--decoy {
+  color: var(--color-decoy);
+  filter: drop-shadow(0 0 6px rgba(213, 164, 255, 0.8));
+}
+
+@keyframes boardDim {
+  0% { opacity: 0; backdrop-filter: blur(0px); }
+  100% { opacity: 1; backdrop-filter: blur(3px); }
+}
+
+@keyframes flagDrop {
+  0% { opacity: 0; transform: translateY(-40px) scale(0.8); }
+  60% { opacity: 1; transform: translateY(5px) scale(1.06); }
+  100% { opacity: 1; transform: translateY(0px) scale(1); }
+}
+
+.board-end-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 28px;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: boardDim 250ms ease forwards;
+  z-index: 8;
+  pointer-events: none;
+}
+
+.flag-death-text {
+  font-family: var(--font-heading);
+  font-size: clamp(1.6rem, 4vw, 2.8rem);
+  color: var(--color-secondary);
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 30px rgba(242, 207, 136, 0.8);
+  animation: flagDrop 350ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both;
+}
+
+@keyframes timerUrgent {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(1.08);
+  }
+}
+
+.reveal-timer--urgent {
+  display: inline-block;
+  color: #fb7185;
+  animation: timerUrgent 600ms ease-in-out infinite;
+}
+
+@keyframes weaponHide {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.65) translateY(4px);
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8)) blur(2px);
+  }
+}
+
+.weapon-hiding {
+  animation: weaponHide 500ms ease-in forwards;
+}
+
+@keyframes decoyShield {
+  0% {
+    box-shadow: 0 0 0 0 rgba(213, 164, 255, 0.65);
+    transform: scale(1);
+  }
+  70% {
+    box-shadow: 0 0 0 16px rgba(213, 164, 255, 0);
+    transform: scale(1.05);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(213, 164, 255, 0);
+    transform: scale(1);
+  }
+}
+
+.decoy-shield-pulse {
+  border-radius: 18px;
+  animation: decoyShield 700ms ease-out infinite;
+}
+
+@keyframes thinkDot {
+  0%, 80%, 100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+.thinking-indicator {
+  display: inline-flex;
+  margin-left: 4px;
+  min-width: 18px;
+  color: var(--color-secondary);
+}
+
+.think-dot {
+  animation: thinkDot 900ms ease-in-out infinite;
+}
+
+.think-dot:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.think-dot:nth-child(3) {
+  animation-delay: 240ms;
+}
+
 .hud-card {
   position: relative;
   overflow: hidden;
@@ -851,6 +1140,16 @@ textarea:focus-visible {
 
 .board-legend strong {
   color: var(--color-text);
+}
+
+.stalemate-notice {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(251, 191, 36, 0.38);
+  border-radius: 8px;
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--color-warning);
+  font-weight: 800;
 }
 
 .board-grid {
