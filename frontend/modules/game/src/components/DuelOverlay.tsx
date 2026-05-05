@@ -141,12 +141,12 @@ export function DuelOverlay({ duel, visible, repick, onRepick }: DuelOverlayProp
         </div>
       ) : null}
       {duel.revealedRole === "flag" ? (
-        <div style={{ color: "var(--color-warning)", fontFamily: "var(--font-heading)", fontSize: "1.25rem", letterSpacing: "0.04em" }}>
+        <div data-testid="revealed-role-banner" style={{ color: "var(--color-warning)", fontFamily: "var(--font-heading)", fontSize: "1.25rem", letterSpacing: "0.04em" }}>
           FLAG CAPTURED - MATCH OVER
         </div>
       ) : null}
       {duel.revealedRole === "decoy" ? (
-        <div style={{ color: "var(--color-secondary)", fontFamily: "var(--font-heading)", fontSize: "1.25rem", letterSpacing: "0.04em" }}>
+        <div data-testid="revealed-role-banner" style={{ color: "var(--color-secondary)", fontFamily: "var(--font-heading)", fontSize: "1.25rem", letterSpacing: "0.04em" }}>
           DECOY - INVULNERABLE
         </div>
       ) : null}

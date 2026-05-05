@@ -423,7 +423,7 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
                 {match.eventLog && match.eventLog.length > 0 ? (
                   <div className="debug-log">
                     {match.eventLog.slice().reverse().map((entry) => (
-                      <div key={`${entry.turn}-${entry.message}`} className="debug-log__entry">
+                      <div key={`${entry.turn}-${entry.message}`} className="debug-log__entry" data-testid="debug-log-entry">
                         <div className="debug-log__meta">
                           <span className="debug-log__turn">Turn {entry.turn}</span>
                           <span className="debug-log__badge">Log</span>
