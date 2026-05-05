@@ -7,9 +7,7 @@ export type Mode = "ai" | "pvp";
 export type Phase = "setup" | "reveal" | "player_turn" | "ai_turn" | "repick" | "finished";
 
 export interface UseGameOptions {
-  /** PVP only: existing match to attach to. If provided, no new match is created. */
   initialMatchId?: string;
-  /** PVP only: session token issued by the lobby. Sent as X-Player-Token. */
   token?: string;
 }
 
@@ -68,6 +66,10 @@ export interface MatchView {
     decoyAbsorbed: number;
   };
   revealEndsAt: number;
+  /** Unix timestamp (seconds) when the current turn expires. Null during reveal. */
+  turnEndsAt: number | null;
+  /** Total seconds allowed per turn (constant, from server). */
+  turnSeconds: number;
   duel: DuelSummary | null;
   result: { winner: Owner; reason: string } | null;
   repick?: { attackerId: string; targetId: string; picksReceived?: string[] };
@@ -93,9 +95,7 @@ import { API_BASE } from "../utils/apiBase";
 
 async function postJson<T>(url: string, body?: unknown, token?: string): Promise<T> {
   const headers: Record<string, string> = { "content-type": "application/json" };
-  if (token) {
-    headers["x-player-token"] = token;
-  }
+  if (token) headers["x-player-token"] = token;
   const response = await fetch(API_BASE + url, {
     method: "POST",
     headers,
@@ -110,9 +110,7 @@ async function postJson<T>(url: string, body?: unknown, token?: string): Promise
 
 async function getJson<T>(url: string, token?: string): Promise<T> {
   const headers: Record<string, string> = {};
-  if (token) {
-    headers["x-player-token"] = token;
-  }
+  if (token) headers["x-player-token"] = token;
   const response = await fetch(API_BASE + url, { method: "GET", headers });
   if (!response.ok) {
     const fallback = await response.text();
@@ -131,6 +129,8 @@ export function useGame(options: UseGameOptions = {}) {
   const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(null);
   const [revealSecondsLeft, setRevealSecondsLeft] = useState(0);
   const [revealArmed, setRevealArmed] = useState(false);
+  // Turn countdown — counts down from turnSeconds to 0.
+  const [turnSecondsLeft, setTurnSecondsLeft] = useState<number>(0);
   const aiInFlightRef = useRef(false);
   const matchRef = useRef<MatchView | null>(null);
 
@@ -144,7 +144,6 @@ export function useGame(options: UseGameOptions = {}) {
       setActionFeedback(null);
       return;
     }
-
     if (match.phase !== "player_turn") {
       setSelectedAttackerId(null);
       setActionFeedback(null);
@@ -152,26 +151,21 @@ export function useGame(options: UseGameOptions = {}) {
   }, [match]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return undefined;
-    }
+    if (typeof window === "undefined") return undefined;
     const testWindow = window as TestWindow;
     testWindow.__SQUAD_RPS_TEST__ = {
       finishReveal: async () => {
         const current = matchRef.current;
-        if (!current) {
-          return;
-        }
+        if (!current) return;
         const next = await postJson<MatchView>(`/api/match/${current.matchId}/reveal/complete`, { confirmed: true }, token);
         setMatch(next);
       },
       getState: () => matchRef.current,
     };
-    return () => {
-      delete testWindow.__SQUAD_RPS_TEST__;
-    };
+    return () => { delete testWindow.__SQUAD_RPS_TEST__; };
   }, [match]);
 
+  // ── Reveal countdown ──
   useEffect(() => {
     if (!match || match.phase !== "reveal") {
       setRevealSecondsLeft(0);
@@ -181,9 +175,7 @@ export function useGame(options: UseGameOptions = {}) {
     const tick = () => {
       const remaining = Math.max(0, Math.ceil(match.revealEndsAt - Date.now() / 1000));
       setRevealSecondsLeft(remaining);
-      if (remaining > 0) {
-        setRevealArmed(true);
-      }
+      if (remaining > 0) setRevealArmed(true);
     };
     tick();
     const interval = window.setInterval(tick, 250);
@@ -191,18 +183,48 @@ export function useGame(options: UseGameOptions = {}) {
   }, [match]);
 
   useEffect(() => {
-    if (!match || match.phase !== "reveal" || revealSecondsLeft > 0 || !revealArmed) {
-      return;
-    }
+    if (!match || match.phase !== "reveal" || revealSecondsLeft > 0 || !revealArmed) return;
     void completeReveal();
   }, [match, revealSecondsLeft, revealArmed]);
 
+  // ── Turn countdown — derived from server's turnEndsAt ──
   useEffect(() => {
-    // AI auto-move only fires for the solo-vs-Claude mode. PVP never enters
-    // "ai_turn" phase (both turns are player_turn) so this is doubly safe.
-    if (!match || match.phase !== "ai_turn" || match.mode === "pvp" || aiInFlightRef.current) {
-      return;
+    const activeTurnPhases: Phase[] = ["player_turn", "ai_turn", "repick"];
+    if (!match || !activeTurnPhases.includes(match.phase) || !match.turnEndsAt) {
+      setTurnSecondsLeft(0);
+      return undefined;
     }
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil(match.turnEndsAt! - Date.now() / 1000));
+      setTurnSecondsLeft(remaining);
+    };
+    tick();
+    const interval = window.setInterval(tick, 250);
+    return () => window.clearInterval(interval);
+  }, [match]);
+
+  // ── PVP: poll when turn expires to pick up server-side skip ──
+  // When turnSecondsLeft hits 0 on the opponent's turn, the server will have
+  // already applied the skip — we just need to fetch the updated state.
+  useEffect(() => {
+    if (!match || match.mode !== "pvp" || !token) return undefined;
+    if (turnSecondsLeft > 0 || match.phase === "finished" || match.phase === "reveal") return undefined;
+
+    // Fetch once immediately when the timer hits 0.
+    const timeout = window.setTimeout(async () => {
+      try {
+        const view = await getJson<MatchView>(`/api/match/${match.matchId}`, token);
+        setMatch(view);
+      } catch {
+        // Ignore transient errors.
+      }
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [turnSecondsLeft, match?.phase, match?.matchId, token]);
+
+  // ── VS-AI: auto-move on ai_turn ──
+  useEffect(() => {
+    if (!match || match.phase !== "ai_turn" || match.mode === "pvp" || aiInFlightRef.current) return;
     aiInFlightRef.current = true;
     const timeout = window.setTimeout(async () => {
       try {
@@ -217,11 +239,9 @@ export function useGame(options: UseGameOptions = {}) {
     return () => window.clearTimeout(timeout);
   }, [match]);
 
-  // PVP: load the initial match state for an attached lobby match.
+  // ── PVP: load initial match state ──
   useEffect(() => {
-    if (!initialMatchId || !token || matchRef.current) {
-      return;
-    }
+    if (!initialMatchId || !token || matchRef.current) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -234,11 +254,9 @@ export function useGame(options: UseGameOptions = {}) {
     return () => { cancelled = true; };
   }, [initialMatchId, token]);
 
-  // PVP: poll for opponent moves while it is not your turn or while waiting on a tie repick.
+  // ── PVP: polling ──
   useEffect(() => {
-    if (!match || match.mode !== "pvp" || !token) {
-      return undefined;
-    }
+    if (!match || match.mode !== "pvp" || !token) return undefined;
     const myTurn = match.viewer === match.currentTurn;
     const waitingForOpponentRepick =
       match.phase === "repick" &&
@@ -250,33 +268,23 @@ export function useGame(options: UseGameOptions = {}) {
       waitingForOpponentRepick ||
       match.phase === "reveal" ||
       match.rematch?.status === "pending";
-    if (!shouldPoll) {
-      return undefined;
-    }
+    if (!shouldPoll) return undefined;
     const interval = window.setInterval(async () => {
       try {
         const view = await getJson<MatchView>(`/api/match/${match.matchId}`, token);
         setMatch(view);
-      } catch (cause) {
+      } catch {
         // Ignore transient errors during polling.
-        void cause;
       }
     }, 1500);
     return () => window.clearInterval(interval);
   }, [match, token]);
 
   const boardCells = useMemo(() => {
-    // CRITICAL: only alive pieces occupy a cell. Dead pieces remain in the
-    // board payload (with alive=false) at their grave coordinates. If we let
-    // them into the lookup map, an alive piece sharing the same (row,col)
-    // could be overwritten by the corpse depending on iteration order, which
-    // looked like pieces "switching" or "cloning" to the user.
     const lookup = new Map<string, VisiblePiece>();
     (match?.board ?? [])
       .filter((piece) => piece.alive)
-      .forEach((piece) => {
-        lookup.set(`${piece.row}-${piece.col}`, piece);
-      });
+      .forEach((piece) => { lookup.set(`${piece.row}-${piece.col}`, piece); });
     const cells: Array<{ row: number; col: number; piece: VisiblePiece | null }> = [];
     for (let row = 6; row >= 1; row -= 1) {
       for (let col = 1; col <= 5; col += 1) {
@@ -290,126 +298,70 @@ export function useGame(options: UseGameOptions = {}) {
   const isMyTurn = match ? match.currentTurn === viewerOwner : false;
 
   const legalMoveTargets = useMemo(() => {
-    if (!match || match.phase !== "player_turn" || !selectedAttackerId || !isMyTurn) {
-      return new Set<string>();
-    }
-
-    const selectedPiece = match.board.find((piece) => piece.id === selectedAttackerId);
-    if (!selectedPiece || selectedPiece.owner !== viewerOwner || !selectedPiece.alive) {
-      return new Set<string>();
-    }
-
-    const occupied = new Set(
-      match.board.filter((piece) => piece.alive).map((piece) => `${piece.row}-${piece.col}`),
-    );
-    // Player advances toward the enemy: row +1 for owner=player (viewing up),
-    // row -1 for owner=ai (player 2 advances downward toward player 1).
+    if (!match || match.phase !== "player_turn" || !selectedAttackerId || !isMyTurn) return new Set<string>();
+    const selectedPiece = match.board.find((p) => p.id === selectedAttackerId);
+    if (!selectedPiece || selectedPiece.owner !== viewerOwner || !selectedPiece.alive) return new Set<string>();
+    const occupied = new Set(match.board.filter((p) => p.alive).map((p) => `${p.row}-${p.col}`));
     const forwardDelta = selectedPiece.owner === "player" ? 1 : -1;
     const candidates: Array<[number, number]> = [
       [selectedPiece.row + forwardDelta, selectedPiece.col],
       [selectedPiece.row, selectedPiece.col - 1],
       [selectedPiece.row, selectedPiece.col + 1],
     ];
-
     return new Set(
       candidates
-        .filter(([row, col]) => row >= 1 && row <= 6 && col >= 1 && col <= 5)
-        .filter(([row, col]) => !occupied.has(`${row}-${col}`))
-        .map(([row, col]) => `${row}-${col}`),
+        .filter(([r, c]) => r >= 1 && r <= 6 && c >= 1 && c <= 5)
+        .filter(([r, c]) => !occupied.has(`${r}-${c}`))
+        .map(([r, c]) => `${r}-${c}`),
     );
   }, [match, selectedAttackerId, viewerOwner, isMyTurn]);
 
   const legalAttackTargets = useMemo(() => {
-    if (!match || match.phase !== "player_turn" || !selectedAttackerId || !isMyTurn) {
-      return new Set<string>();
-    }
-
-    const selectedPiece = match.board.find((piece) => piece.id === selectedAttackerId);
-    if (!selectedPiece || selectedPiece.owner !== viewerOwner || !selectedPiece.alive) {
-      return new Set<string>();
-    }
-
+    if (!match || match.phase !== "player_turn" || !selectedAttackerId || !isMyTurn) return new Set<string>();
+    const selectedPiece = match.board.find((p) => p.id === selectedAttackerId);
+    if (!selectedPiece || selectedPiece.owner !== viewerOwner || !selectedPiece.alive) return new Set<string>();
     return new Set(
       match.board
-        .filter(
-          (piece) =>
-            piece.alive &&
-            piece.owner !== viewerOwner &&
-            Math.abs(piece.row - selectedPiece.row) + Math.abs(piece.col - selectedPiece.col) === 1,
-        )
-        .map((piece) => piece.id),
+        .filter((p) => p.alive && p.owner !== viewerOwner && Math.abs(p.row - selectedPiece.row) + Math.abs(p.col - selectedPiece.col) === 1)
+        .map((p) => p.id),
     );
   }, [match, selectedAttackerId, viewerOwner, isMyTurn]);
 
   const phaseLabel = useMemo(() => {
     switch (match?.phase) {
-      case "reveal":
-        return "Weapon Reveal";
-      case "player_turn":
-        return isMyTurn ? "Player Turn" : "Opponent Turn";
-      case "ai_turn":
-        return "AI Turn";
-      case "repick":
-        return "Tie Repick";
-      case "finished":
-        return "Match Finished";
-      default:
-        return "Setup";
+      case "reveal": return "Weapon Reveal";
+      case "player_turn": return isMyTurn ? "Player Turn" : "Opponent Turn";
+      case "ai_turn": return "AI Turn";
+      case "repick": return "Tie Repick";
+      case "finished": return "Match Finished";
+      default: return "Setup";
     }
   }, [match?.phase, isMyTurn]);
 
   const turnLabel = useMemo(() => {
-    if (!match) {
-      return "Waiting";
-    }
-    if (match.phase === "reveal") {
-      return "Memorize the board";
-    }
-    if (match.phase === "finished") {
-      return "Match over";
-    }
-    if (match.phase === "ai_turn") {
-      return "Claude thinking";
-    }
-    if (match.phase === "repick") {
-      return "Choose your repick";
-    }
+    if (!match) return "Waiting";
+    if (match.phase === "reveal") return "Memorize the board";
+    if (match.phase === "finished") return "Match over";
+    if (match.phase === "ai_turn") return "Claude thinking";
+    if (match.phase === "repick") return "Choose your repick";
     return isMyTurn ? "Your move" : "Opponent move";
   }, [match, isMyTurn]);
 
   const selectedPiece = useMemo(
-    () => match?.board.find((piece) => piece.id === selectedAttackerId) ?? null,
+    () => match?.board.find((p) => p.id === selectedAttackerId) ?? null,
     [match, selectedAttackerId],
   );
 
   const actionHint = useMemo(() => {
-    if (!match) {
-      return "Start a match to begin.";
-    }
-    if (match.phase === "reveal") {
-      return "Memorize enemy weapons before the countdown ends. The board is locked during reveal.";
-    }
-    if (match.phase === "ai_turn") {
-      return "Claude is resolving its turn. Wait for the board to update.";
-    }
-    if (match.phase === "repick") {
-      return "The duel tied. Pick a new weapon to continue the same clash.";
-    }
-    if (match.phase === "finished") {
-      return "Review the result, then start another match.";
-    }
-    if (!selectedPiece) {
-      return "Select one of your alive pieces. Front-row pieces can usually advance first.";
-    }
-    if (legalMoveTargets.size === 0 && legalAttackTargets.size === 0) {
-      return "This piece is blocked. Open a lane with a different piece or wait for the board to change.";
-    }
-    if (legalAttackTargets.size > 0 && legalMoveTargets.size > 0) {
-      return "This piece can either move into a highlighted blue cell or attack a highlighted enemy target.";
-    }
-    if (legalAttackTargets.size > 0) {
-      return "This piece has an adjacent enemy. Attack one of the highlighted enemy targets.";
-    }
+    if (!match) return "Start a match to begin.";
+    if (match.phase === "reveal") return "Memorize enemy weapons before the countdown ends. The board is locked during reveal.";
+    if (match.phase === "ai_turn") return "Claude is resolving its turn. Wait for the board to update.";
+    if (match.phase === "repick") return "The duel tied. Pick a new weapon to continue the same clash.";
+    if (match.phase === "finished") return "Review the result, then start another match.";
+    if (!selectedPiece) return "Select one of your alive pieces. Front-row pieces can usually advance first.";
+    if (legalMoveTargets.size === 0 && legalAttackTargets.size === 0) return "This piece is blocked. Open a lane with a different piece.";
+    if (legalAttackTargets.size > 0 && legalMoveTargets.size > 0) return "This piece can move into a blue cell or attack a highlighted enemy.";
+    if (legalAttackTargets.size > 0) return "This piece has an adjacent enemy. Attack one of the highlighted enemy targets.";
     return "This piece can move into one of the highlighted blue cells.";
   }, [match, selectedPiece, legalMoveTargets, legalAttackTargets]);
 
@@ -430,9 +382,7 @@ export function useGame(options: UseGameOptions = {}) {
 
   async function completeReveal() {
     const current = matchRef.current;
-    if (!current || current.phase !== "reveal") {
-      return;
-    }
+    if (!current || current.phase !== "reveal") return;
     try {
       const next = await postJson<MatchView>(`/api/match/${current.matchId}/reveal/complete`, { confirmed: true }, token);
       setMatch(next);
@@ -443,9 +393,7 @@ export function useGame(options: UseGameOptions = {}) {
 
   async function attack(targetId: string) {
     const current = matchRef.current;
-    if (!current || current.phase !== "player_turn" || !selectedAttackerId) {
-      return;
-    }
+    if (!current || current.phase !== "player_turn" || !selectedAttackerId) return;
     setLoading(true);
     setError(null);
     setActionFeedback(null);
@@ -465,9 +413,7 @@ export function useGame(options: UseGameOptions = {}) {
 
   async function movePiece(row: number, col: number) {
     const current = matchRef.current;
-    if (!current || current.phase !== "player_turn" || !selectedAttackerId) {
-      return;
-    }
+    if (!current || current.phase !== "player_turn" || !selectedAttackerId) return;
     setLoading(true);
     setError(null);
     setActionFeedback(null);
@@ -488,9 +434,7 @@ export function useGame(options: UseGameOptions = {}) {
 
   async function submitRepick(weapon: Weapon) {
     const current = matchRef.current;
-    if (!current || current.phase !== "repick") {
-      return;
-    }
+    if (!current || current.phase !== "repick") return;
     setLoading(true);
     setError(null);
     setActionFeedback(null);
@@ -506,9 +450,7 @@ export function useGame(options: UseGameOptions = {}) {
 
   async function submitRematch(action: "accept" | "decline") {
     const current = matchRef.current;
-    if (!current) {
-      return null;
-    }
+    if (!current) return null;
     setLoading(true);
     setError(null);
     try {
@@ -524,13 +466,13 @@ export function useGame(options: UseGameOptions = {}) {
   }
 
   function onPieceClick(piece: VisiblePiece) {
-    if (!match) {
-      return;
-    }
+    if (!match) return;
     if (match.phase !== "player_turn" || !piece.alive || !isMyTurn) {
       setActionFeedback({
         tone: "warning",
-        message: match?.phase === "reveal" ? "Board locked during reveal. Memorize positions until the timer ends." : "Wait for your turn before acting.",
+        message: match?.phase === "reveal"
+          ? "Board locked during reveal. Memorize positions until the timer ends."
+          : "Wait for your turn before acting.",
       });
       return;
     }
@@ -542,34 +484,22 @@ export function useGame(options: UseGameOptions = {}) {
     }
     if (piece.owner !== viewerOwner && selectedAttackerId) {
       if (!legalAttackTargets.has(piece.id)) {
-        setActionFeedback({
-          tone: "warning",
-          message: "Blocked: you can only duel an adjacent enemy target.",
-        });
+        setActionFeedback({ tone: "warning", message: "Blocked: you can only duel an adjacent enemy target." });
         return;
       }
       void attack(piece.id);
       return;
     }
-    setActionFeedback({
-      tone: "info",
-      message: "Select one of your operatives first, then choose an adjacent enemy to duel.",
-    });
+    setActionFeedback({ tone: "info", message: "Select one of your operatives first, then choose an adjacent enemy to duel." });
   }
 
   function onEmptyCellClick(row: number, col: number) {
     if (!selectedAttackerId || match?.phase !== "player_turn" || !isMyTurn) {
-      setActionFeedback({
-        tone: "info",
-        message: "Select one of your operatives to preview legal move lanes.",
-      });
+      setActionFeedback({ tone: "info", message: "Select one of your operatives to preview legal move lanes." });
       return;
     }
     if (!legalMoveTargets.has(`${row}-${col}`)) {
-      setActionFeedback({
-        tone: "warning",
-        message: `Blocked: move only to a highlighted adjacent empty square, not R${row} C${col}.`,
-      });
+      setActionFeedback({ tone: "warning", message: `Blocked: move only to a highlighted adjacent empty square, not R${row} C${col}.` });
       return;
     }
     void movePiece(row, col);
@@ -599,6 +529,8 @@ export function useGame(options: UseGameOptions = {}) {
     onPieceClick,
     resetToSetup,
     revealSecondsLeft,
+    // Turn timer — expose both the raw countdown and the full turn duration.
+    turnSecondsLeft,
     selectedAttackerId,
     selectedPiece,
     selectedDifficulty,
