@@ -31,7 +31,7 @@ export function StartScreen({ difficulties, selected, onSelect, onStart, loading
             ))}
           </div>
           <button type="button" className="primary-button" onClick={onStart} disabled={loading}>
-            {loading ? "Working..." : "Start match"}
+            {loading ? "Working..." : "Start Match"}
           </button>
         </section>
       </div>

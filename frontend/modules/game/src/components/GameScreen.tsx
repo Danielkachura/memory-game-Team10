@@ -67,6 +67,7 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
   const topLabel = match?.players?.ai ?? (match?.mode === "pvp" ? "Blue Squad" : "Claude");
   const bottomLabel = match?.players?.player ?? "Red Squad";
   const boardStatus = actionFeedback ?? (error ? { tone: "warning" as const, message: error } : null);
+  const showStalemateNotice = /lone decoy remaining/i.test(match?.message ?? "");
   const attachedMatch = Boolean(initialMatchId && token);
   const viewerRepickRole =
     match?.phase === "repick" && match.duel
@@ -204,6 +205,12 @@ export function GameScreen({ initialMatchId, token, onExit }: GameScreenProps) {
               <span><strong>Blue cells:</strong> legal move</span>
               <span><strong>Rose cells:</strong> legal duel</span>
             </div>
+
+            {showStalemateNotice ? (
+              <p className="stalemate-notice" data-testid="stalemate-notice">
+                {match.message}
+              </p>
+            ) : null}
 
             {match.phase === "reveal" ? (
               <>

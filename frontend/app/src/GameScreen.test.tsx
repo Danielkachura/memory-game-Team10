@@ -73,6 +73,19 @@ function repickMatch(picksReceived: string[] = []) {
   };
 }
 
+function playerTurnMatch(message = "Your turn. Pick an attacker and an enemy target.") {
+  return {
+    ...repickMatch(),
+    phase: "player_turn",
+    mode: "ai",
+    viewer: "player",
+    currentTurn: "player",
+    message,
+    duel: null,
+    repick: undefined,
+  };
+}
+
 describe("GameScreen repick flow", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -100,5 +113,30 @@ describe("GameScreen repick flow", () => {
       expect(screen.queryByText(/SELECT NEW WEAPON/i)).not.toBeInTheDocument();
     });
     expect(screen.getByText(/Waiting for the other player to pick their tie weapon/i)).toBeInTheDocument();
+  });
+
+  it("shows a dedicated lone decoy notice when the backend message reports stalemate", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      json: async () => playerTurnMatch("Lone Decoy remaining — now killable."),
+    } as Response);
+
+    render(<GameScreen initialMatchId="match-ai-1" token="player-token" />);
+
+    expect(await screen.findByTestId("stalemate-notice")).toHaveTextContent(/Lone Decoy remaining/i);
+  });
+
+  it("renders forced tie-resolution messages from the event log", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        ...playerTurnMatch(),
+        eventLog: [{ turn: 7, message: "Forced resolution after 5 consecutive ties." }],
+      }),
+    } as Response);
+
+    render(<GameScreen initialMatchId="match-ai-2" token="player-token" />);
+
+    expect(await screen.findByTestId("debug-log-panel")).toHaveTextContent("Forced resolution after 5 consecutive ties.");
   });
 });

@@ -8,6 +8,7 @@ interface DuelSummary {
   defenderName: string;
   defenderWeapon: Weapon;
   winner: "attacker" | "defender" | "tie";
+  revealedRole?: "soldier" | "flag" | "decoy";
 }
 
 interface DuelOverlayProps {
@@ -58,6 +59,16 @@ export function DuelOverlay({ duel, visible, repick, onRepick }: DuelOverlayProp
         <div style={{ fontFamily: "var(--font-heading)", color: "var(--color-warning)", fontSize: "2rem" }}>{duel.winner === "tie" ? "=" : "VS"}</div>
         <WeaponCard weapon={duel.defenderWeapon} unitId={duel.defenderId} label={duel.defenderName} />
       </div>
+      {duel.revealedRole === "flag" ? (
+        <div style={{ color: "var(--color-warning)", fontFamily: "var(--font-heading)", fontSize: "1.25rem", letterSpacing: "0.04em" }}>
+          FLAG CAPTURED - MATCH OVER
+        </div>
+      ) : null}
+      {duel.revealedRole === "decoy" ? (
+        <div style={{ color: "var(--color-secondary)", fontFamily: "var(--font-heading)", fontSize: "1.25rem", letterSpacing: "0.04em" }}>
+          Decoy - target is invulnerable
+        </div>
+      ) : null}
       {repick && onRepick ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
           <div style={{ color: "var(--color-warning)", fontFamily: "var(--font-heading)" }}>SELECT NEW WEAPON</div>
@@ -66,6 +77,7 @@ export function DuelOverlay({ duel, visible, repick, onRepick }: DuelOverlayProp
               <button
                 key={weapon}
                 type="button"
+                aria-label={`Choose ${weapon[0].toUpperCase()}${weapon.slice(1)}`}
                 onClick={() => onRepick(weapon)}
                 style={{ border: "none", background: "transparent", cursor: "pointer" }}
               >
