@@ -14,10 +14,12 @@ export interface UseGameReturn {
   uiPhase:           UiPhase;
   selectedPieceId:   string | null;
   movingPieceId:     string | null;
+  selectablePieceIds: Set<string>;
   validMoveSet:      Set<string>;
   error:             string | null;
   loading:           boolean;
   revealSecondsLeft: number;
+  turnSecondsLeft:   number;
   difficulties:      Array<{ id: Difficulty; label: string; detail: string }>;
   selectedDifficulty: Difficulty;
   showDuel:          boolean;
@@ -25,9 +27,12 @@ export interface UseGameReturn {
   setSelectedDifficulty: (d: Difficulty) => void;
   onPieceClick:      (piece: Piece) => void;
   onCellClick:       (row: number, col: number) => void;
+  shufflePlayerPieces: () => Promise<void>;
   startMatch:        () => Promise<void>;
+  resetMatch:        () => Promise<void>;
   resetToSetup:      () => void;
   submitRepick:      (weapon: Weapon) => Promise<void>;
+  skipReveal:        () => Promise<void>;
 }
 
 const DIFFICULTIES: Array<{ id: Difficulty; label: string; detail: string }> = [
@@ -61,6 +66,10 @@ function computeValidMoves(piece: Piece, board: Piece[]): Array<{ row: number; c
     });
 }
 
+function isTimedTurnPhase(phase: Phase): boolean {
+  return phase === "player_turn" || phase === "ai_turn" || phase === "repick";
+}
+
 export function useGame(): UseGameReturn {
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>("medium");
   const [match,              setMatch]              = useState<MatchView | null>(null);
@@ -69,12 +78,19 @@ export function useGame(): UseGameReturn {
   const [loading,            setLoading]            = useState(false);
   const [error,              setError]              = useState<string | null>(null);
   const [revealSecondsLeft,  setRevealSecondsLeft]  = useState(0);
+  const [turnSecondsLeft,    setTurnSecondsLeft]    = useState(0);
   const [showDuel,           setShowDuel]           = useState(false);
   const [dyingIds,           setDyingIds]           = useState<Set<string>>(new Set());
   const aiInFlightRef = useRef(false);
   const matchRef      = useRef<MatchView | null>(null);
+  const timeoutInFlightRef = useRef(false);
 
   useEffect(() => { matchRef.current = match; }, [match]);
+
+  const hasPlayerFlag = useMemo(
+    () => !!match?.board.some(piece => piece.owner === "player" && piece.alive && piece.role === "flag"),
+    [match],
+  );
 
   // ── Valid moves for selected piece ───────────────────────────────
   const validMoves = useMemo(() => {
@@ -88,6 +104,16 @@ export function useGame(): UseGameReturn {
     () => new Set(validMoves.map(m => `${m.row}-${m.col}`)),
     [validMoves],
   );
+
+  const selectablePieceIds = useMemo(() => {
+    if (!match || match.phase !== "player_turn") return new Set<string>();
+    return new Set(
+      match.board
+        .filter(piece => piece.alive && piece.owner === "player")
+        .filter(piece => computeValidMoves(piece, match.board).length > 0)
+        .map(piece => piece.id),
+    );
+  }, [match]);
 
   // ── Reveal timer ─────────────────────────────────────────────────
   useEffect(() => {
@@ -105,9 +131,33 @@ export function useGame(): UseGameReturn {
   }, [match]);
 
   useEffect(() => {
-    if (!match || match.phase !== "reveal" || revealSecondsLeft > 0) return;
+    if (!match || !isTimedTurnPhase(match.phase) || !match.turnEndsAt) {
+      setTurnSecondsLeft(0);
+      return undefined;
+    }
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil(match.turnEndsAt! - Date.now() / 1000));
+      setTurnSecondsLeft(remaining);
+    };
+    tick();
+    const interval = window.setInterval(tick, 250);
+    return () => window.clearInterval(interval);
+  }, [match]);
+
+  useEffect(() => {
+    if (!match || match.phase !== "reveal") return;
+    if (Date.now() / 1000 < match.revealEndsAt) return;
     void completeReveal();
   }, [match, revealSecondsLeft]);
+
+  useEffect(() => {
+    if (!match || !isTimedTurnPhase(match.phase) || !match.turnEndsAt || timeoutInFlightRef.current) return;
+    if (Date.now() / 1000 < match.turnEndsAt) return;
+    timeoutInFlightRef.current = true;
+    void submitTurnTimeout().finally(() => {
+      timeoutInFlightRef.current = false;
+    });
+  }, [match, turnSecondsLeft]);
 
   // ── Apply state with animation ───────────────────────────────────
   const applyState = useCallback((next: MatchView) => {
@@ -167,11 +217,18 @@ export function useGame(): UseGameReturn {
   }, [match]);
 
   // ── Actions ───────────────────────────────────────────────────────
-  async function startMatch() {
+  async function createMatch(clearCurrentMatch: boolean) {
     setLoading(true);
     setError(null);
     setSelectedPieceId(null);
+    setMovingPieceId(null);
+    setTurnSecondsLeft(0);
+    setShowDuel(false);
     setDyingIds(new Set());
+    if (clearCurrentMatch) {
+      aiInFlightRef.current = false;
+      setMatch(null);
+    }
     try {
       const created = await postJson<MatchView>("/api/match/create", { difficulty: selectedDifficulty });
       setMatch(created);
@@ -182,6 +239,14 @@ export function useGame(): UseGameReturn {
     }
   }
 
+  async function startMatch() {
+    await createMatch(false);
+  }
+
+  async function resetMatch() {
+    await createMatch(true);
+  }
+
   async function completeReveal() {
     const current = matchRef.current;
     if (!current || current.phase !== "reveal") return;
@@ -189,7 +254,60 @@ export function useGame(): UseGameReturn {
       const next = await postJson<MatchView>(`/api/match/${current.matchId}/reveal/complete`, { confirmed: true });
       setMatch(next);
     } catch (cause) {
+      // Surface the error so the player can see it and use the manual Skip button
+      const msg = cause instanceof Error ? cause.message : "Reveal transition failed.";
       console.error("[useGame] completeReveal failed:", cause);
+      setError(`Could not advance past reveal phase: ${msg}. Use the Skip button or restart.`);
+    }
+  }
+
+  // Public escape-hatch: lets the UI render a "Skip" / "Proceed" button
+  async function skipReveal() {
+    if (!hasPlayerFlag) return;
+    setError(null);
+    await completeReveal();
+  }
+
+  async function shufflePlayerPieces() {
+    const current = matchRef.current;
+    if (!current || current.phase !== "reveal") return;
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await postJson<MatchView>(`/api/match/${current.matchId}/shuffle/player`);
+      setMatch(next);
+      audioManager.unlock();
+      audioManager.play("shuffle");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Shuffle failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function choosePlayerFlag(pieceId: string) {
+    const current = matchRef.current;
+    if (!current || current.phase !== "reveal") return;
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await postJson<MatchView>(`/api/match/${current.matchId}/flag/player`, { pieceId });
+      setMatch(next);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Flag selection failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitTurnTimeout() {
+    const current = matchRef.current;
+    if (!current || !isTimedTurnPhase(current.phase)) return;
+    try {
+      const next = await postJson<MatchView>(`/api/match/${current.matchId}/turn/timeout`);
+      setMatch(next);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Turn timeout handling failed.");
     }
   }
 
@@ -235,9 +353,23 @@ export function useGame(): UseGameReturn {
   }
 
   function onPieceClick(piece: Piece) {
-    if (!match || showDuel || match.phase !== "player_turn" || !piece.alive) return;
+    // Debug: log every click so developers can verify events reach this handler
+    console.debug("[onPieceClick] piece=%s owner=%s phase=%s alive=%s", piece.id, piece.owner, match?.phase, piece.alive);
+
+    if (match?.phase === "reveal") {
+      if (piece.owner === "player" && piece.alive) {
+        void choosePlayerFlag(piece.id);
+      }
+      return;
+    }
+
+    if (!match || showDuel || match.phase !== "player_turn" || !piece.alive) {
+      console.debug("[onPieceClick] blocked — phase=%s showDuel=%s alive=%s", match?.phase, showDuel, piece.alive);
+      return;
+    }
 
     if (piece.owner === "player") {
+      if (!selectablePieceIds.has(piece.id)) return;
       setSelectedPieceId(prev => prev === piece.id ? null : piece.id);
       return;
     }
@@ -262,6 +394,7 @@ export function useGame(): UseGameReturn {
     setMovingPieceId(null);
     setError(null);
     setLoading(false);
+    setTurnSecondsLeft(0);
     setShowDuel(false);
     setDyingIds(new Set());
     audioManager.stopBgm();
@@ -284,10 +417,12 @@ export function useGame(): UseGameReturn {
     uiPhase,
     selectedPieceId,
     movingPieceId,
+    selectablePieceIds,
     validMoveSet,
     error,
     loading,
     revealSecondsLeft,
+    turnSecondsLeft,
     difficulties:       DIFFICULTIES,
     selectedDifficulty,
     showDuel,
@@ -295,8 +430,11 @@ export function useGame(): UseGameReturn {
     setSelectedDifficulty,
     onPieceClick,
     onCellClick,
+    shufflePlayerPieces,
     startMatch,
+    resetMatch,
     resetToSetup,
     submitRepick,
+    skipReveal,
   };
 }

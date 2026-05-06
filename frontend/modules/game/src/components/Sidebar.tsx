@@ -1,210 +1,406 @@
+import type { CSSProperties } from "react";
 import { Phase, DuelSummary, MatchStats, Difficulty, MatchView, Weapon } from "@shared/types";
-import { REVEAL_DURATION_SECONDS } from "@shared/constants";
+import { REVEAL_DURATION_SECONDS, TURN_DURATION_SECONDS, UNITS_PER_SQUAD } from "@shared/constants";
 
 interface SidebarProps {
   phase:        Phase;
   revealTimer:  number;
+  turnTimer:    number;
   stats:        MatchStats;
   match:        MatchView;
   difficulty:   Difficulty;
+  loading:      boolean;
+  onShufflePositions: () => Promise<void>;
+  onResetGame:  () => Promise<void>;
+  onBackToMenu: () => void;
 }
 
-const PHASE_INFO: Record<string, { text: string; color: string }> = {
-  reveal:      { text: "MEMORIZE!",       color: "var(--color-warning)" },
-  player_turn: { text: "YOUR TURN",       color: "var(--color-success)" },
-  ai_turn:     { text: "AI...",           color: "var(--color-label-cpu)" },
-  repick:      { text: "TIE! RE-PICK",    color: "var(--color-warning)" },
-  finished:    { text: "GAME OVER",       color: "var(--color-text-muted)" },
-};
-
 const DIFF_COLOR: Record<Difficulty, string> = {
-  easy:   "var(--color-success)",
-  medium: "var(--color-warning)",
-  hard:   "var(--color-danger)",
+  easy:   "#44DD66",
+  medium: "#FFAA22",
+  hard:   "#FF4444",
 };
 
 const WEAPON_EMOJI: Record<Weapon, string> = {
   rock: "🪨", paper: "📄", scissors: "✂️",
 };
 
-export function Sidebar({
-  phase, revealTimer, stats, match, difficulty,
-}: SidebarProps) {
-  const info = PHASE_INFO[phase] ?? { text: "...", color: "var(--color-text-muted)" };
+const PHASE_LABEL: Record<string, { text: string; color: string }> = {
+  reveal:      { text: "MEMORIZE",    color: "#FFAA22" },
+  player_turn: { text: "YOUR TURN",  color: "#44DD66" },
+  ai_turn:     { text: "AI MOVING",  color: "#00A3FF" },
+  repick:      { text: "TIE — REPICK", color: "#FFAA22" },
+  finished:    { text: "GAME OVER",  color: "#A0A0A0" },
+};
 
-  const aliveAi     = match.board.filter(p => p.owner === "ai" && p.alive).length;
+const GLASS: CSSProperties = {
+  background:   "#1F231B",
+  border:       "1px solid rgba(255, 255, 255, 0.06)",
+  borderRadius: "10px",
+};
+
+export function Sidebar({
+  phase, revealTimer, turnTimer, stats, match, difficulty, loading, onShufflePositions, onResetGame, onBackToMenu,
+}: SidebarProps) {
+  const aliveAi     = match.board.filter(p => p.owner === "ai"     && p.alive).length;
   const alivePlayer = match.board.filter(p => p.owner === "player" && p.alive).length;
+  const hasPlayerFlag = match.board.some(
+    (piece) => piece.owner === "player" && piece.alive && piece.role === "flag",
+  );
+  const totalAlive  = aliveAi + alivePlayer;
+  // Fraction of total alive that belongs to the player (0–1), clamped to [0.05, 0.95]
+  const playerFrac  = totalAlive > 0
+    ? Math.min(0.95, Math.max(0.05, alivePlayer / totalAlive))
+    : 0.5;
+
+  const phaseInfo = PHASE_LABEL[phase] ?? { text: "...", color: "#A0A0A0" };
+  const showTurnTimer = phase === "player_turn" || phase === "ai_turn" || phase === "repick";
+  const displayTurnTimer = Math.min(turnTimer, TURN_DURATION_SECONDS);
 
   return (
     <div
       data-testid="sidebar"
       style={{
         width:         "var(--sidebar-width)",
-        background:    "var(--color-sidebar-bg)",
         display:       "flex",
         flexDirection: "column",
         alignItems:    "center",
-        gap:           "14px",
+        gap:           "10px",
         padding:       "14px 10px",
-        borderLeft:    "3px solid var(--color-board-border)",
         overflowY:     "auto",
       }}
     >
       {/* Logo */}
       <img
-        src="/logo_rps_online_nobg.png"
-        alt="RPS Online"
-        style={{ width: "130px", objectFit: "contain" }}
+        src="/game_logo_main.png"
+        alt="Squad RPS"
+        style={{ width: "120px", objectFit: "contain" }}
         onError={(e) => {
           const el = e.target as HTMLImageElement;
           el.style.display = "none";
-          el.insertAdjacentHTML("afterend", `
-            <div style="font-family:var(--font-heading);font-size:2rem;font-style:italic;color:var(--color-logo-text);text-shadow:2px 2px 0 rgba(0,0,0,0.5);line-height:1;text-align:center">RPS<br><span style="font-size:0.8rem;color:var(--color-text);letter-spacing:0.1em">Online</span></div>
-          `);
+          el.insertAdjacentHTML("afterend", `<div style="font-family:var(--font-heading);font-size:1.8rem;font-style:italic;color:var(--color-logo-text);line-height:1;text-align:center">SQUAD<br><span style="font-size:0.7rem;color:var(--color-text);letter-spacing:0.1em">RPS</span></div>`);
         }}
       />
 
-      {/* Difficulty badge */}
-      <div style={{
-        fontFamily:   "var(--font-body)",
-        fontSize:     "0.75rem",
-        fontWeight:   "bold",
-        color:        DIFF_COLOR[difficulty],
-        border:       `1.5px solid ${DIFF_COLOR[difficulty]}`,
-        borderRadius: "var(--radius-sm)",
-        padding:      "2px 10px",
-        textTransform: "uppercase",
-        letterSpacing: "1px",
-      }}>
-        {difficulty}
-      </div>
+      {/* Opponent profile card */}
+      <div style={{ ...GLASS, width: "100%", padding: "10px 12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <img
+            src="/character_blue_idle_nobg.png"
+            alt="AI"
+            style={{ width: "44px", height: "44px", objectFit: "contain" }}
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+          <div style={{ flex: 1 }}>
+            <div style={{
+              fontFamily:    "var(--font-body)",
+              fontSize:      "0.78rem",
+              fontWeight:    700,
+              color:         "var(--color-label-cpu)",
+              letterSpacing: "0.5px",
+            }}>
+              AI SQUAD
+            </div>
+            {/* Difficulty badge */}
+            <span style={{
+              fontFamily:    "var(--font-body)",
+              fontSize:      "0.6rem",
+              fontWeight:    700,
+              color:         DIFF_COLOR[difficulty],
+              border:        `1px solid ${DIFF_COLOR[difficulty]}`,
+              borderRadius:  "3px",
+              padding:       "1px 6px",
+              textTransform: "uppercase",
+              letterSpacing: "0.8px",
+            }}>
+              {difficulty}
+            </span>
+          </div>
+          {/* Settings / pause icon */}
+          <button
+            type="button"
+            title="Settings"
+            style={{
+              background: "transparent",
+              border:     "none",
+              cursor:     "pointer",
+              color:      "var(--color-text-muted)",
+              fontSize:   "1rem",
+              padding:    "2px",
+              lineHeight: 1,
+            }}
+          >
+            ⚙️
+          </button>
+        </div>
 
-      {/* Timer or yin-yang */}
-      {phase === "reveal" ? (
-        <RevealTimer seconds={revealTimer} />
-      ) : (
-        <YinYangCircle />
-      )}
+        {/* AI health bar */}
+        <div style={{ marginTop: "8px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "3px" }}>
+            <span style={{ fontFamily: "var(--font-ui)", fontSize: "0.6rem", color: "var(--color-text-muted)" }}>UNITS</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--color-label-cpu)" }}>
+              {aliveAi}/{UNITS_PER_SQUAD}
+            </span>
+          </div>
+          <div style={{ height: "4px", background: "rgba(255,255,255,0.1)", borderRadius: "2px", overflow: "hidden" }}>
+            <div style={{
+              height:       "100%",
+              width:        `${(aliveAi / UNITS_PER_SQUAD) * 100}%`,
+              background:   "var(--color-label-cpu)",
+              borderRadius: "2px",
+              transition:   "width 0.4s ease",
+            }} />
+          </div>
+        </div>
+      </div>
 
       {/* Phase indicator */}
       <div style={{
-        fontFamily:  "var(--font-body)",
-        fontSize:    "0.9rem",
-        fontWeight:  "bold",
-        color:       info.color,
-        textAlign:   "center",
-        padding:     "5px 10px",
-        background:  "rgba(0,0,0,0.3)",
-        borderRadius: "var(--radius-sm)",
-        minWidth:    "110px",
-        letterSpacing: "0.5px",
+        fontFamily:    "var(--font-body)",
+        fontSize:      "0.75rem",
+        fontWeight:    700,
+        color:         phaseInfo.color,
+        letterSpacing: "1.5px",
+        padding:       "5px 14px",
+        background:    "rgba(0,0,0,0.4)",
+        borderRadius:  "20px",
+        border:        `1px solid ${phaseInfo.color}33`,
       }}>
-        {info.text}
+        {phase === "reveal"
+          ? `👁 ${revealTimer}s`
+          : showTurnTimer
+          ? `${phaseInfo.text} ${displayTurnTimer}s`
+          : phaseInfo.text}
       </div>
 
-      {/* Alive counters */}
-      <div style={{ width: "100%", display: "flex", gap: "6px" }}>
-        <TeamCount label="AI"  alive={aliveAi}     total={10} color="var(--color-label-cpu)" />
-        <TeamCount label="YOU" alive={alivePlayer} total={10} color="var(--color-label-player)" />
-      </div>
+      {/* Scoreboard */}
+      <div style={{ ...GLASS, width: "100%", padding: "10px 12px" }}>
+        <div style={{
+          fontFamily:    "var(--font-body)",
+          fontSize:      "0.6rem",
+          color:         "var(--color-text-muted)",
+          letterSpacing: "1.5px",
+          textAlign:     "center",
+          marginBottom:  "8px",
+        }}>
+          UNITS REMAINING
+        </div>
 
-      {/* Stats */}
-      <div style={{
-        width:         "100%",
-        background:    "rgba(0,0,0,0.25)",
-        borderRadius:  "var(--radius-sm)",
-        padding:       "8px 10px",
-        display:       "flex",
-        flexDirection: "column",
-        gap:           "4px",
-      }}>
-        <StatRow label="Duels Won"  value={stats.playerDuelsWon} color="var(--color-success)" />
-        <StatRow label="Duels Lost" value={stats.playerDuelsLost} color="var(--color-danger)" />
-        <StatRow label="Decoy Blocks" value={stats.decoyAbsorbed} color="var(--color-decoy)" />
-        <StatRow label="Tie Rounds"   value={stats.tieSequences} color="var(--color-warning)" />
-      </div>
+        {/* AI vs YOU counters */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: "1.8rem", fontWeight: 700, color: "var(--color-label-cpu)", lineHeight: 1 }}>
+              {aliveAi}
+            </div>
+            <div style={{ fontFamily: "var(--font-ui)", fontSize: "0.55rem", color: "var(--color-text-muted)", marginTop: "2px" }}>AI</div>
+          </div>
+          <div style={{ fontFamily: "var(--font-heading)", fontSize: "0.85rem", color: "rgba(255,255,255,0.2)" }}>vs</div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: "1.8rem", fontWeight: 700, color: "var(--color-label-player)", lineHeight: 1 }}>
+              {alivePlayer}
+            </div>
+            <div style={{ fontFamily: "var(--font-ui)", fontSize: "0.55rem", color: "var(--color-text-muted)", marginTop: "2px" }}>YOU</div>
+          </div>
+        </div>
 
-      {/* Current Duel Info */}
-      {match.duel && (
-        <div style={{ width: "100%" }}>
+        {/* Horizontal versus bar */}
+        <div
+          title={`AI ${aliveAi} — Player ${alivePlayer}`}
+          style={{
+            display:      "flex",
+            height:       "6px",
+            borderRadius: "3px",
+            overflow:     "hidden",
+            background:   "rgba(255,255,255,0.06)",
+          }}
+        >
           <div style={{
-            fontFamily:   "var(--font-ui)",
-            fontSize:     "0.68rem",
-            color:        "var(--color-text-muted)",
-            marginBottom: "4px",
-            letterSpacing: "0.5px",
-          }}>
-            CURRENT DUEL
+            width:      `${(1 - playerFrac) * 100}%`,
+            background: "var(--color-label-cpu)",
+            transition: "width 0.5s ease",
+          }} />
+          <div style={{ width: "2px", background: "rgba(255,255,255,0.15)" }} />
+          <div style={{
+            flex:       1,
+            background: "var(--color-label-player)",
+            transition: "width 0.5s ease",
+          }} />
+        </div>
+      </div>
+
+      {/* Stats table */}
+      <div style={{ ...GLASS, width: "100%", padding: "10px 12px" }}>
+        <div style={{
+          fontFamily:    "var(--font-body)",
+          fontSize:      "0.6rem",
+          color:         "var(--color-text-muted)",
+          letterSpacing: "1.5px",
+          marginBottom:  "8px",
+        }}>
+          STATS
+        </div>
+        <StatRow icon="⚔️" label="Duels Won"    value={stats.playerDuelsWon}  color="#44DD66" />
+        <StatRow icon="🛡️" label="Duels Lost"   value={stats.playerDuelsLost} color="#FF4444" />
+        <StatRow icon="🎭" label="Decoy Blocks"  value={stats.decoyAbsorbed}   color="#CF6FFF" />
+        <StatRow icon="⚖️" label="Ties"          value={stats.tieSequences}    color="#FFAA22" />
+      </div>
+
+      {/* Phase timer ring */}
+      {(phase === "reveal" || showTurnTimer) && (
+        <CountdownTimer
+          seconds={phase === "reveal" ? revealTimer : displayTurnTimer}
+          duration={phase === "reveal" ? REVEAL_DURATION_SECONDS : TURN_DURATION_SECONDS}
+          testId={phase === "reveal" ? "reveal-timer" : "turn-timer"}
+        />
+      )}
+
+      {phase === "reveal" && (
+        <div style={{ ...GLASS, width: "100%", padding: "8px 12px" }}>
+          <div style={{ fontFamily: "var(--font-ui)", fontSize: "0.62rem", color: "var(--color-text-muted)", lineHeight: "1.5" }}>
+            {hasPlayerFlag
+              ? "הדגל הוצב. אפשר ללחוץ על חייל אחר כדי להעביר אותו לפני תחילת המשחק."
+              : "בהתחלה אפשר לערבב את החיילים, ואז ללחוץ על אחד החיילים שלך כדי לקבוע איפה יהיה הדגל."}
+          </div>
+        </div>
+      )}
+
+      {/* Current duel info */}
+      {match.duel && (
+        <div style={{ ...GLASS, width: "100%", padding: "8px 12px" }}>
+          <div style={{ fontFamily: "var(--font-ui)", fontSize: "0.58rem", color: "var(--color-text-muted)", marginBottom: "4px", letterSpacing: "0.5px" }}>
+            LAST DUEL
           </div>
           <DuelLogEntry duel={match.duel} />
         </div>
       )}
 
-      {/* Referee + help */}
-      <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
-        <img
-          src="/character_yellow_idle_nobg.png"
-          alt="referee"
-          style={{ width: "60px", height: "60px", objectFit: "contain", opacity: 0.8 }}
-          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-        />
-        <div style={{
-          fontFamily: "var(--font-ui)",
-          fontSize:   "0.62rem",
-          color:      "var(--color-text-muted)",
-          textAlign:  "center",
-          lineHeight: "1.4",
-        }}>
-          🪨 &gt; ✂️ &gt; 📄 &gt; 🪨
+      {/* Spacer */}
+      <div style={{ flex: 1 }} />
+
+      {/* Player health bar */}
+      <div style={{ ...GLASS, width: "100%", padding: "8px 12px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "3px" }}>
+          <span style={{ fontFamily: "var(--font-body)", fontSize: "0.7rem", fontWeight: 700, color: "var(--color-label-player)" }}>YOUR SQUAD</span>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--color-label-player)" }}>
+            {alivePlayer}/{UNITS_PER_SQUAD}
+          </span>
+        </div>
+        <div style={{ height: "4px", background: "rgba(255,255,255,0.1)", borderRadius: "2px", overflow: "hidden" }}>
+          <div style={{
+            height:       "100%",
+            width:        `${(alivePlayer / UNITS_PER_SQUAD) * 100}%`,
+            background:   "var(--color-label-player)",
+            borderRadius: "2px",
+            transition:   "width 0.4s ease",
+          }} />
         </div>
       </div>
+
+      <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "8px" }}>
+        {phase === "reveal" && !hasPlayerFlag && (
+          <button
+            type="button"
+            onClick={() => void onShufflePositions()}
+            disabled={loading}
+            style={{
+              width:         "100%",
+              fontFamily:    "var(--font-body)",
+              fontSize:      "0.78rem",
+              fontWeight:    700,
+              padding:       "10px 12px",
+              background:    loading ? "rgba(255,255,255,0.08)" : "#D48B14",
+              color:         "#1F1404",
+              border:        "1px solid rgba(255,255,255,0.14)",
+              borderRadius:  "10px",
+              cursor:        loading ? "wait" : "pointer",
+              letterSpacing: "0.4px",
+              boxShadow:     loading ? "none" : "0 6px 16px rgba(0,0,0,0.25)",
+              opacity:       loading ? 0.75 : 1,
+              transition:    "transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease",
+            }}
+          >
+            ערבב חיילים
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => void onResetGame()}
+          disabled={loading}
+          style={{
+            width:         "100%",
+            fontFamily:    "var(--font-body)",
+            fontSize:      "0.78rem",
+            fontWeight:    700,
+            padding:       "10px 12px",
+            background:    loading ? "rgba(255,255,255,0.08)" : "#AA2E25",
+            color:         "#FFF5E8",
+            border:        "1px solid rgba(255,255,255,0.14)",
+            borderRadius:  "10px",
+            cursor:        loading ? "wait" : "pointer",
+            letterSpacing: "0.4px",
+            boxShadow:     loading ? "none" : "0 6px 16px rgba(0,0,0,0.3)",
+            opacity:       loading ? 0.75 : 1,
+            transition:    "transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease",
+          }}
+        >
+          איפוס משחק
+        </button>
+
+        <button
+          type="button"
+          onClick={onBackToMenu}
+          style={{
+            width:         "100%",
+            fontFamily:    "var(--font-body)",
+            fontSize:      "0.76rem",
+            fontWeight:    700,
+            padding:       "10px 12px",
+            background:    "rgba(255,255,255,0.08)",
+            color:         "var(--color-text)",
+            border:        "1px solid rgba(255,255,255,0.14)",
+            borderRadius:  "10px",
+            cursor:        "pointer",
+            letterSpacing: "0.4px",
+            boxShadow:     "0 4px 12px rgba(0,0,0,0.2)",
+            transition:    "transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease",
+          }}
+        >
+          חזרה לתפריט הראשי
+        </button>
+      </div>
+
+      {/* RPS cheat sheet */}
+      <div style={{
+        fontFamily: "var(--font-ui)",
+        fontSize:   "0.62rem",
+        color:      "var(--color-text-muted)",
+        textAlign:  "center",
+        lineHeight: "1.6",
+        padding:    "6px 8px",
+        background: "rgba(0,0,0,0.25)",
+        borderRadius: "6px",
+        width:      "100%",
+      }}>
+        🪨 beats ✂️ &nbsp;·&nbsp; 📄 beats 🪨 &nbsp;·&nbsp; ✂️ beats 📄
+      </div>
     </div>
   );
 }
 
-function TeamCount({ label, alive, total, color }: {
-  label: string; alive: number; total: number; color: string;
-}) {
-  const pct = (alive / total) * 100;
+function StatRow({ icon, label, value, color }: { icon: string; label: string; value: number; color: string }) {
   return (
-    <div style={{
-      flex:          1,
-      background:    "rgba(0,0,0,0.3)",
-      borderRadius:  "var(--radius-sm)",
-      padding:       "6px 8px",
-      textAlign:     "center",
-    }}>
-      <div style={{ fontFamily: "var(--font-body)", fontSize: "0.7rem", color, fontWeight: "bold" }}>{label}</div>
-      <div style={{ fontFamily: "var(--font-mono)", fontSize: "1.2rem", color, marginBottom: "4px" }}>
-        {alive}
-      </div>
-      {/* Health bar */}
-      <div style={{ height: "4px", background: "rgba(255,255,255,0.15)", borderRadius: "2px", overflow: "hidden" }}>
-        <div style={{
-          height:     "100%",
-          width:      `${pct}%`,
-          background: color,
-          borderRadius: "2px",
-          transition:  "width 0.4s ease",
-        }} />
-      </div>
-    </div>
-  );
-}
-
-function StatRow({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <span style={{ fontFamily: "var(--font-ui)", fontSize: "0.68rem", color: "var(--color-text-muted)" }}>{label}</span>
-      <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem", color, fontWeight: "bold" }}>{value}</span>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+      <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+        <span style={{ fontSize: "0.7rem" }}>{icon}</span>
+        <span style={{ fontFamily: "var(--font-ui)", fontSize: "0.65rem", color: "var(--color-text-muted)" }}>{label}</span>
+      </span>
+      <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem", color, fontWeight: 700 }}>{value}</span>
     </div>
   );
 }
 
 function DuelLogEntry({ duel }: { duel: DuelSummary }) {
-  const attackerWeapon = duel.attackerWeapon;
-  const defenderWeapon = duel.defenderWeapon;
-
   let result = "⚔️";
   if (duel.tie) result = "⚖️";
   else if (duel.decoyAbsorbed) result = "🎭";
@@ -213,43 +409,36 @@ function DuelLogEntry({ duel }: { duel: DuelSummary }) {
 
   return (
     <div style={{
-      display:       "flex",
-      alignItems:    "center",
-      gap:           "4px",
-      padding:       "3px 6px",
-      background:    "rgba(0,0,0,0.2)",
-      borderRadius:  "3px",
-      fontSize:      "0.68rem",
-      fontFamily:    "var(--font-ui)",
-      color:         "var(--color-text-muted)",
+      display:    "flex",
+      alignItems: "center",
+      gap:        "6px",
+      fontSize:   "0.68rem",
+      fontFamily: "var(--font-ui)",
+      color:      "var(--color-text-muted)",
     }}>
       <span style={{ fontSize: "0.9rem" }}>{result}</span>
-      <span style={{ color: "var(--color-label-player)" }}>
-        {WEAPON_EMOJI[attackerWeapon] ?? "?"}
-      </span>
+      <span style={{ color: "var(--color-label-player)" }}>{WEAPON_EMOJI[duel.attackerWeapon] ?? "?"}</span>
       <span>vs</span>
-      <span style={{ color: "var(--color-label-cpu)" }}>
-        {WEAPON_EMOJI[defenderWeapon] ?? "?"}
-      </span>
+      <span style={{ color: "var(--color-label-cpu)" }}>{WEAPON_EMOJI[duel.defenderWeapon] ?? "?"}</span>
     </div>
   );
 }
 
-function RevealTimer({ seconds }: { seconds: number }) {
-  const pct  = (seconds / REVEAL_DURATION_SECONDS) * 100;
-  const r    = 42;
+function CountdownTimer({ seconds, duration, testId }: { seconds: number; duration: number; testId: string }) {
+  const pct  = duration > 0 ? Math.min(100, (seconds / duration) * 100) : 0;
+  const r    = 38;
   const circ = 2 * Math.PI * r;
   const dash = (pct / 100) * circ;
 
   return (
-    <div data-testid="reveal-timer" style={{ position: "relative", width: "110px", height: "110px" }}>
-      <svg width="110" height="110" style={{ transform: "rotate(-90deg)" }}>
-        <circle cx="55" cy="55" r={r} fill="var(--color-timer-bg)" stroke="var(--color-board-border)" strokeWidth="5" />
+    <div data-testid={testId} style={{ position: "relative", width: "90px", height: "90px" }}>
+      <svg width="90" height="90" style={{ transform: "rotate(-90deg)" }}>
+        <circle cx="45" cy="45" r={r} fill="var(--color-timer-bg)" stroke="rgba(255,255,255,0.08)" strokeWidth="4" />
         <circle
-          cx="55" cy="55" r={r}
+          cx="45" cy="45" r={r}
           fill="none"
-          stroke={seconds <= 3 ? "var(--color-danger)" : "var(--color-timer-fill)"}
-          strokeWidth="6"
+          stroke={seconds <= 3 ? "#FF4444" : "var(--color-timer-fill)"}
+          strokeWidth="5"
           strokeDasharray={`${dash} ${circ}`}
           strokeLinecap="round"
           style={{ transition: "stroke-dasharray 0.9s linear" }}
@@ -264,45 +453,15 @@ function RevealTimer({ seconds }: { seconds: number }) {
         justifyContent: "center",
       }}>
         <span style={{
-          fontFamily:  "var(--font-mono)",
-          fontSize:    "2rem",
-          fontWeight:  "bold",
-          color:       seconds <= 3 ? "var(--color-danger)" : "var(--color-timer-fill)",
-          textShadow:  "0 0 8px rgba(0,0,0,0.8)",
-          animation:   seconds <= 3 ? "pulse 0.5s ease infinite" : undefined,
+          fontFamily: "var(--font-mono)",
+          fontSize:   "1.6rem",
+          fontWeight: "bold",
+          color:      seconds <= 3 ? "#FF4444" : "var(--color-timer-fill)",
         }}>
           {seconds}
         </span>
-        <span style={{ fontSize: "0.55rem", color: "var(--color-text-muted)" }}>SEC</span>
+        <span style={{ fontSize: "0.5rem", color: "var(--color-text-muted)" }}>SEC</span>
       </div>
-    </div>
-  );
-}
-
-function YinYangCircle() {
-  return (
-    <div data-testid="yin-yang" style={{
-      width:          "110px",
-      height:         "110px",
-      borderRadius:   "50%",
-      background:     "var(--color-timer-bg)",
-      border:         "3px solid var(--color-board-border)",
-      display:        "flex",
-      alignItems:     "center",
-      justifyContent: "center",
-      boxShadow:      "0 4px 12px rgba(0,0,0,0.4)",
-    }}>
-      <img
-        src="/yin_yang_labeled_nobg.png"
-        alt="yin yang"
-        style={{ width: "90px", height: "90px", objectFit: "contain" }}
-        onError={(e) => {
-          const img = e.target as HTMLImageElement;
-          img.style.display = "none";
-          img.parentElement!.textContent = "☯️";
-          (img.parentElement as HTMLElement).style.fontSize = "3.5rem";
-        }}
-      />
     </div>
   );
 }

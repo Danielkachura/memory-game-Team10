@@ -1,7 +1,10 @@
 /* ============================================================
-   Squad RPS — Design System
-   Visual reference: RPS Online (original Flash game)
+   Squad RPS — Design System (Modern Dark Mode)
+   Sprint 06 founder-approved visual override.
+   Gameplay remains 7×6 — color palette upgraded to dark mode.
    ============================================================ */
+
+/* ── Google Fonts loaded via index.html ─────────────────────── */
 
 /* ── Reset ──────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
@@ -12,49 +15,49 @@ html, body, #root {
   min-height: 100%;
 }
 
-/* ── Design Tokens ──────────────────────────────────────────── */
+/* ── Design Tokens — Dark Mode ───────────────────────────────── */
 :root {
   /* Board */
-  --color-board-light:   #8dc63f;
-  --color-board-dark:    #6daa2c;
-  --color-board-border:  #4a7a1e;
-  --color-board-bg:      #6daa2c;
+  --color-board-light:   #3D4A32;
+  --color-board-dark:    #2A3323;
+  --color-board-border:  rgba(180, 200, 150, 0.22);
+  --color-board-bg:      #141811;
 
   /* Teams */
-  --color-player:        #cc2200;
-  --color-player-light:  #ff4422;
-  --color-cpu:           #1a44cc;
-  --color-cpu-light:     #3366ff;
+  --color-player:        #FF4B4B;
+  --color-player-light:  #FF6B6B;
+  --color-cpu:           #00A3FF;
+  --color-cpu-light:     #33B8FF;
 
   /* Selection */
-  --color-selected:      #ffffff;
-  --color-valid-target:  #ffff44;
+  --color-selected:      #FFD700;
+  --color-valid-target:  #FFD700;
 
   /* Special roles */
-  --color-flag:          #ffcc00;
-  --color-decoy:         #b060d0;
+  --color-flag:          #FFD700;
+  --color-decoy:         #CF6FFF;
 
   /* Outcome */
-  --color-success:       #44bb44;
-  --color-danger:        #cc0000;
-  --color-warning:       #ffaa00;
+  --color-success:       #44DD66;
+  --color-danger:        #FF4444;
+  --color-warning:       #FFAA22;
 
-  /* Sidebar */
-  --color-sidebar-bg:    #4a7a1e;
-  --color-logo-text:     #ccee22;
-  --color-timer-bg:      #3a6010;
-  --color-timer-fill:    #aaee22;
+  /* Sidebar / surfaces */
+  --color-sidebar-bg:    rgba(255, 255, 255, 0.04);
+  --color-logo-text:     #AADD22;
+  --color-timer-bg:      #1E2618;
+  --color-timer-fill:    #88CC22;
 
   /* Text */
-  --color-text:          #ffffff;
-  --color-text-muted:    #ddeeaa;
-  --color-label-player:  #ff4422;
-  --color-label-cpu:     #4477ff;
+  --color-text:          #E0E0E0;
+  --color-text-muted:    #A0A0A0;
+  --color-label-player:  #FF4B4B;
+  --color-label-cpu:     #00A3FF;
 
   /* Sizing */
-  --cell-size:       68px;
-  --unit-size:       56px;
-  --sidebar-width:   200px;
+  --cell-size:       clamp(44px, 12vw, 82px);
+  --unit-size:       calc(var(--cell-size) - 12px);
+  --sidebar-width:   clamp(200px, 30vw, 240px);
 
   /* Spacing */
   --space-xs:  6px;
@@ -64,7 +67,7 @@ html, body, #root {
 
   /* Radius */
   --radius-sm: 4px;
-  --radius-md: 10px;
+  --radius-md: 12px;
 
   /* Motion */
   --motion-fast:   150ms;
@@ -72,10 +75,10 @@ html, body, #root {
   --motion-duel:  1000ms;
   --motion-hide:   600ms;
 
-  /* Typography */
-  --font-heading: "Impact", "Arial Black", sans-serif;
-  --font-body:    "Arial Rounded MT Bold", "Arial", sans-serif;
-  --font-ui:      "Verdana", "Geneva", sans-serif;
+  /* Typography — modern sans-serif (loaded from Google Fonts) */
+  --font-heading: "Poppins", "Inter", "Arial Black", sans-serif;
+  --font-body:    "Inter", "Poppins", "Arial", sans-serif;
+  --font-ui:      "Inter", "Segoe UI", "Verdana", sans-serif;
   --font-mono:    "Courier New", monospace;
 }
 
@@ -83,6 +86,7 @@ body {
   background:  var(--color-board-bg);
   font-family: var(--font-ui);
   color:       var(--color-text);
+  overflow-x:  hidden;
 }
 
 /* ── Animations ─────────────────────────────────────────────── */
@@ -121,6 +125,11 @@ body {
   100% { opacity: 0; transform: scale(0.4) rotate(-30deg); }
 }
 
+@keyframes playerGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 75, 75, 0); }
+  50%       { box-shadow: 0 0 8px 2px rgba(255, 75, 75, 0.25); }
+}
+
 .piece-dying {
   animation: unitDie 0.5s ease forwards;
 }
@@ -133,29 +142,28 @@ body {
   animation: pop 0.5s ease;
 }
 
-/* ── Hero jump spritesheet — 3×2 grid, top row = idle / run / air ── */
+/* ── Hero jump spritesheet — 4-frame horizontal strip ────────────── */
 @keyframes heroJumpFrames {
-  0%   { background-position: 0%   0%; }
-  20%  { background-position: 50%  0%; }
-  50%  { background-position: 100% 0%; }
-  80%  { background-position: 50%  0%; }
-  100% { background-position: 0%   0%; }
+  0%   { background-position: 0%      0%; animation-timing-function: step-end; }
+  25%  { background-position: 33.33%  0%; animation-timing-function: step-end; }
+  50%  { background-position: 66.67%  0%; animation-timing-function: step-end; }
+  75%  { background-position: 100%    0%; animation-timing-function: step-end; }
+  100% { background-position: 100%    0%; }
 }
 
 .hero-jump-sprite {
-  background-size:   300% 200%;
+  background-size:   400% 100%;
   background-repeat: no-repeat;
-  animation: heroJumpFrames 0.5s ease;
+  image-rendering:   pixelated;
+  animation:         heroJumpFrames 0.5s linear forwards;
 }
 
 /* ── Referee spritesheet — 4×3 grid ─────────────────────────────── */
-/* battle: alternate flags-spread ↔ flags-crossed */
 @keyframes refBattle {
   0%,  49% { background-position: 33.33% 0%; }
   50%, 100% { background-position: 0%    0%; }
 }
 
-/* win: sweep across row 0 frames */
 @keyframes refCheerSprite {
   0%,  30% { background-position: 0%     0%; }
   31%, 65% { background-position: 66.67% 0%; }

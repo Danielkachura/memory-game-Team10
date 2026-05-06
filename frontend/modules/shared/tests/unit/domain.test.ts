@@ -3,12 +3,12 @@ import { BOARD_COLS, BOARD_ROWS, UNITS_PER_SQUAD, REVEAL_DURATION_SECONDS } from
 
 describe("Squad RPS Constants", () => {
   it("should have canonical board dimensions", () => {
-    expect(BOARD_COLS).toBe(5);
+    expect(BOARD_COLS).toBe(7);
     expect(BOARD_ROWS).toBe(6);
   });
 
   it("should have canonical squad size", () => {
-    expect(UNITS_PER_SQUAD).toBe(10);
+    expect(UNITS_PER_SQUAD).toBe(14);
   });
 
   it("should have canonical reveal duration", () => {

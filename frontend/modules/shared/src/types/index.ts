@@ -55,6 +55,7 @@ export interface MatchView {
   board: Piece[];
   stats: MatchStats;
   revealEndsAt: number;
+  turnEndsAt: number | null;
   duel: DuelSummary | null;
   result: { winner: Owner; reason: string } | null;
   repick?: { attackerId: string; targetId: string };

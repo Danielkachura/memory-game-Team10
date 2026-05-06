@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import random
 import time
 import uuid
@@ -10,16 +9,17 @@ from typing import Any, Literal
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from .config import AI_TIMEOUT_SECONDS, REVEAL_SECONDS
+from .config import REVEAL_SECONDS
 from .schemas import (
     MatchCreateRequest,
+    PlayerFlagRequest,
     PlayerMoveRequest,
     RevealCompleteRequest,
+    ShuffleMatchRequest,
     SquadGenerateRequest,
     TieRepickRequest,
     Weapon,
 )
-from .service import ClaudeProxyError, call_claude_text
 
 app = FastAPI(title="Squad RPS Python API")
 
@@ -35,8 +35,14 @@ Owner = Literal["player", "ai"]
 Role  = Literal["soldier", "flag", "decoy"]
 Phase = Literal["setup", "reveal", "player_turn", "ai_turn", "repick", "finished"]
 
-BOARD_COLS = 5
+BOARD_COLS = 7
 BOARD_ROWS = 6
+SQUAD_ROWS = 2
+UNITS_PER_SQUAD = BOARD_COLS * SQUAD_ROWS
+PLAYER_START_ROWS = [1, 2]
+AI_START_ROWS = [BOARD_ROWS, BOARD_ROWS - 1]
+TURN_DURATION_SECONDS = 10
+DUEL_TURN_BUFFER_SECONDS = 2
 
 WEAPONS: list[Weapon] = ["rock", "paper", "scissors"]
 WEAPON_ICON = {"rock": "🪨", "paper": "📄", "scissors": "✂️"}
@@ -47,14 +53,22 @@ PLAYER_NAMES = [
     "Captain Quartz", "Paper Lantern", "Scissor Jack",
     "Ribbon Riot",    "Pebble Nova",   "Ink Talon",
     "Chisel Bloom",   "Origami Volt",  "Velvet Fang",
-    "Static Ace",
+    "Static Ace",     "Ember Knot",    "Granite Pulse",
+    "Riddle Crest",   "Jade Slash",
+    "Copper Gale",    "Marble Jolt",   "Torch Bloom",
+    "Signal Quarry",  "Cardinal Shear","Ashen Scroll",
+    "Violet Clasp",
 ]
 
 AI_NAMES = [
     "Oracle Flint", "Fable Sheet", "Razor Moth",
     "Cipher Ribbon","Gravel Echo", "Signal Veil",
     "Chrome Snip",  "Banner Ghost","Prism Grit",
-    "Comet Shear",
+    "Comet Shear",  "Vector Shale","Echo Crest",
+    "Neon Snare",   "Halo Shard",
+    "Quartz Mirage","Slate Howl",  "Circuit Fang",
+    "Velvet Static","Ember Warden","Obsidian Trace",
+    "Monsoon Clip",
 ]
 
 
@@ -96,9 +110,7 @@ def get_valid_moves(piece: dict[str, Any], match_state: dict[str, Any]) -> list[
 # ── Squad generation ────────────────────────────────────────────────
 
 def balanced_weapons() -> list[Weapon]:
-    weapons: list[Weapon] = ["rock", "rock", "rock", "rock",
-                              "paper", "paper", "paper",
-                              "scissors", "scissors", "scissors"]
+    weapons: list[Weapon] = [WEAPONS[index % len(WEAPONS)] for index in range(UNITS_PER_SQUAD)]
     random.shuffle(weapons)
     return weapons
 
@@ -122,65 +134,102 @@ def fallback_squads() -> dict[str, list[dict[str, Any]]]:
     player_pieces: list[dict[str, Any]] = []
     ai_pieces:     list[dict[str, Any]] = []
 
-    for index, name in enumerate(PLAYER_NAMES):
-        row = 1 if index < 5 else 2
-        col = (index % 5) + 1
+    for index, name in enumerate(PLAYER_NAMES[:UNITS_PER_SQUAD]):
+        row = PLAYER_START_ROWS[index // BOARD_COLS]
+        col = (index % BOARD_COLS) + 1
         player_pieces.append(build_piece("player", name, player_weapons[index], row, col))
 
-    for index, name in enumerate(AI_NAMES):
-        row = BOARD_ROWS if index < 5 else BOARD_ROWS - 1
-        col = (index % 5) + 1
+    for index, name in enumerate(AI_NAMES[:UNITS_PER_SQUAD]):
+        row = AI_START_ROWS[index // BOARD_COLS]
+        col = (index % BOARD_COLS) + 1
         ai_pieces.append(build_piece("ai", name, ai_weapons[index], row, col))
 
     return {"player": player_pieces, "ai": ai_pieces}
 
 
-def generate_squads_with_claude() -> dict[str, list[dict[str, Any]]]:
-    prompt = (
-        "Generate JSON only. Create two squads named player and ai for a 1-vs-AI rock-paper-scissors "
-        "squad battle. Each squad must contain exactly 10 characters. Each character needs name, "
-        "weapon, and description. Weapons must be balanced so each squad has at least 2 rock, 2 paper, "
-        "and 2 scissors. Allowed weapons: rock, paper, scissors."
-    )
-    text   = call_claude_text(prompt, 600)
-    parsed = json.loads(text)
-    if not isinstance(parsed, dict) or "player" not in parsed or "ai" not in parsed:
-        raise ClaudeProxyError("Invalid squad payload.")
-
-    squads = fallback_squads()
-    for owner in ("player", "ai"):
-        roster = parsed.get(owner)
-        if not isinstance(roster, list) or len(roster) != 10:
-            raise ClaudeProxyError("Invalid squad size.")
-        for index, item in enumerate(roster):
-            if not isinstance(item, dict):
-                raise ClaudeProxyError("Invalid squad member.")
-            weapon      = item.get("weapon")
-            name        = item.get("name")
-            description = item.get("description")
-            if weapon not in WEAPONS or not isinstance(name, str):
-                raise ClaudeProxyError("Invalid squad member fields.")
-            squads[owner][index]["weapon"]      = weapon
-            squads[owner][index]["name"]        = name.strip()[:40]
-            squads[owner][index]["description"] = str(description or "").strip()[:80]
-    return squads
-
-
 def generate_squads() -> dict[str, list[dict[str, Any]]]:
-    try:
-        return generate_squads_with_claude()
-    except Exception:
-        return fallback_squads()
+    return fallback_squads()
+
+
+def start_positions_for(owner: Owner) -> list[tuple[int, int]]:
+    rows = PLAYER_START_ROWS if owner == "player" else AI_START_ROWS
+    return [(row, col) for row in rows for col in range(1, BOARD_COLS + 1)]
+
+
+def shuffle_piece_positions(match_state: dict[str, Any], owner: Owner) -> None:
+    pieces = [p for p in match_state["pieces"] if p["owner"] == owner and p["alive"]]
+    positions = start_positions_for(owner)
+    random.shuffle(positions)
+    for piece, (row, col) in zip(pieces, positions, strict=True):
+        piece["row"] = row
+        piece["col"] = col
+
+
+def selected_player_flag(match_state: dict[str, Any]) -> dict[str, Any] | None:
+    return next(
+        (p for p in match_state["pieces"] if p["owner"] == "player" and p["alive"] and p["role"] == "flag"),
+        None,
+    )
+
+
+def reveal_time_expired(match_state: dict[str, Any]) -> bool:
+    return match_state["phase"] == "reveal" and time.time() >= match_state["reveal_ends_at"]
+
+
+def resolve_reveal_timeout(match_state: dict[str, Any]) -> bool:
+    if not reveal_time_expired(match_state) or selected_player_flag(match_state):
+        return False
+
+    end_match(match_state, "ai", "Time ran out before you placed your flag.")
+    return True
+
+
+def set_turn_deadline(match_state: dict[str, Any], seconds: int = TURN_DURATION_SECONDS) -> None:
+    match_state["turn_ends_at"] = time.time() + seconds
+
+
+def timed_turn_owner(match_state: dict[str, Any]) -> Owner | None:
+    if match_state["phase"] in ("player_turn", "repick"):
+        return "player"
+    if match_state["phase"] == "ai_turn":
+        return "ai"
+    return None
+
+
+def turn_time_expired(match_state: dict[str, Any]) -> bool:
+    timed_owner = timed_turn_owner(match_state)
+    turn_ends_at = match_state.get("turn_ends_at")
+    return timed_owner is not None and turn_ends_at is not None and time.time() >= turn_ends_at
+
+
+def resolve_turn_timeout(match_state: dict[str, Any]) -> bool:
+    timed_owner = timed_turn_owner(match_state)
+    if timed_owner is None or not turn_time_expired(match_state):
+        return False
+
+    if timed_owner == "player":
+        end_match(match_state, "ai", "Time ran out on your turn.")
+    else:
+        end_match(match_state, "player", "AI ran out of time.")
+    return True
 
 
 # ── Role assignment ────────────────────────────────────────────────
 
 def assign_roles(match_state: dict[str, Any]) -> None:
     for owner in ("player", "ai"):
-        pieces                   = [p for p in match_state["pieces"] if p["owner"] == owner]
-        flag_piece, decoy_piece  = random.sample(pieces, 2)
-        flag_piece["role"]       = "flag"
-        decoy_piece["role"]      = "decoy"
+        pieces = [p for p in match_state["pieces"] if p["owner"] == owner and p["alive"]]
+        chosen_flag = selected_player_flag(match_state) if owner == "player" else None
+
+        for piece in pieces:
+            piece["role"] = "soldier"
+
+        flag_piece = chosen_flag if chosen_flag in pieces else random.choice(pieces)
+        decoy_pool = [piece for piece in pieces if piece["id"] != flag_piece["id"]]
+        decoy_piece = random.choice(decoy_pool)
+
+        flag_piece["role"] = "flag"
+        decoy_piece["role"] = "decoy"
 
 
 # ── View helpers ───────────────────────────────────────────────────
@@ -200,7 +249,11 @@ def visible_piece(piece: dict[str, Any], viewer: Owner, phase: Phase, finished: 
     is_owner   = piece["owner"] == viewer
     reveal_all = finished
     show_weapon = phase == "reveal" or is_owner or reveal_all
-    show_role   = (is_owner and phase != "reveal") or (reveal_all and piece["role"] != "soldier")
+    show_role   = (
+        (is_owner and phase != "reveal")
+        or (is_owner and phase == "reveal" and piece["role"] == "flag")
+        or (reveal_all and piece["role"] != "soldier")
+    )
 
     label = piece["name"] if is_owner or reveal_all else "Hidden Operative"
 
@@ -235,6 +288,7 @@ def build_player_view(match_state: dict[str, Any]) -> dict[str, Any]:
         "board":       board,
         "stats":       stats_view(match_state),
         "revealEndsAt":match_state["reveal_ends_at"],
+        "turnEndsAt":  match_state.get("turn_ends_at"),
         "duel":        match_state.get("last_duel"),
         "result":      match_state.get("result"),
     }
@@ -270,6 +324,7 @@ def duel_result(
 def end_match(match_state: dict[str, Any], winner: Owner, reason: str) -> None:
     match_state["phase"]        = "finished"
     match_state["current_turn"] = "none"
+    match_state["turn_ends_at"] = None
     match_state["result"]       = {"winner": winner, "reason": reason}
     match_state["message"]      = reason
 
@@ -341,6 +396,7 @@ def apply_duel_outcome(
     if match_state["phase"] != "finished":
         match_state["phase"]        = "ai_turn"   if initiated_by == "player" else "player_turn"
         match_state["current_turn"] = "ai"         if initiated_by == "player" else "player"
+        set_turn_deadline(match_state, TURN_DURATION_SECONDS + DUEL_TURN_BUFFER_SECONDS)
     match_state["last_duel"] = duel
 
 
@@ -358,7 +414,7 @@ def resolve_attack(
 
     if outcome == "tie":
         match_state["phase"]        = "repick"
-        match_state["current_turn"] = initiated_by
+        match_state["current_turn"] = "player"
         match_state["stats"]["tie_sequences"] += 1
         match_state["message"]   = "Tie. Pick a new weapon to continue the duel."
         match_state["last_duel"] = {
@@ -379,6 +435,7 @@ def resolve_attack(
             "attacker_weapon":  aw,
             "defender_weapon":  dw,
         }
+        set_turn_deadline(match_state)
         return
 
     match_state["pending_repick"] = None
@@ -420,6 +477,7 @@ def execute_move(
         next_turn       = "ai"         if initiated_by == "player" else "player"
         match_state["phase"]        = next_phase
         match_state["current_turn"] = next_turn
+        set_turn_deadline(match_state)
         match_state["message"]      = (
             "AI is choosing..." if initiated_by == "player"
             else "Your turn. Select a piece to move."
@@ -483,41 +541,6 @@ def choose_ai_move(match_state: dict[str, Any]) -> tuple[dict[str, Any] | None, 
     return None, 0, 0, "AI has no valid moves."
 
 
-def choose_ai_move_with_claude(match_state: dict[str, Any]) -> tuple[dict[str, Any], int, int, str]:
-    ai_pieces     = alive_pieces(match_state, "ai")
-    player_pieces = alive_pieces(match_state, "player")
-    valid: list[dict[str, Any]] = []
-    for p in ai_pieces:
-        for mv in get_valid_moves(p, match_state):
-            valid.append({"pieceId": p["id"], "pieceName": p["name"],
-                          "weapon": p["weapon"], **mv})
-
-    visible_state = {
-        "difficulty":    match_state["difficulty"],
-        "validMoves":    valid,
-        "playerPieces":  [
-            {"id": p["id"], "name": p["name"],
-             "knownWeapon": match_state["known_player_weapons"].get(p["id"]),
-             "row": p["row"], "col": p["col"]}
-            for p in player_pieces
-        ],
-    }
-    prompt = (
-        "Choose the AI move in a Stratego-style RPS game. "
-        "Return JSON only: {pieceId, targetRow, targetCol, reasoning}. "
-        "Choose only from validMoves. "
-        f"State: {json.dumps(visible_state)}"
-    )
-    text     = call_claude_text(prompt, 200)
-    parsed   = json.loads(text)
-    piece_id = parsed.get("pieceId")
-    t_row    = int(parsed["targetRow"])
-    t_col    = int(parsed["targetCol"])
-    reason   = str(parsed.get("reasoning", "AI used Claude guidance."))[:160]
-    piece    = next(p for p in ai_pieces if p["id"] == piece_id)
-    return piece, t_row, t_col, reason
-
-
 # ── Match creation ─────────────────────────────────────────────────
 
 def create_match_state(difficulty: str) -> dict[str, Any]:
@@ -534,6 +557,7 @@ def create_match_state(difficulty: str) -> dict[str, Any]:
         "reveal_ends_at": started_at + REVEAL_SECONDS,
         "message":      "Memorize the enemy squad before the reveal timer ends.",
         "pieces":       pieces,
+        "turn_ends_at": None,
         "stats": {
             "player_duels_won":  0,
             "player_duels_lost": 0,
@@ -566,16 +590,65 @@ def create_match(payload: MatchCreateRequest) -> dict[str, Any]:
 def complete_reveal(match_id: str, _payload: RevealCompleteRequest) -> dict[str, Any]:
     match_state = match_or_404(match_id)
     if match_state["phase"] == "reveal":
+        if resolve_reveal_timeout(match_state):
+            return build_player_view(match_state)
+        if not selected_player_flag(match_state):
+            raise HTTPException(400, "Choose your flag before starting the match.")
         assign_roles(match_state)
         match_state["phase"]        = "player_turn"
         match_state["current_turn"] = "player"
-        match_state["message"]      = "Your turn. Select a piece to move."
+        set_turn_deadline(match_state)
+        match_state["message"]      = "Your turn. Select one of your front units and move to a highlighted square."
+    return build_player_view(match_state)
+
+
+@app.post("/api/match/{match_id}/shuffle/player")
+def shuffle_player_positions(match_id: str, _payload: ShuffleMatchRequest) -> dict[str, Any]:
+    match_state = match_or_404(match_id)
+    if resolve_reveal_timeout(match_state):
+        return build_player_view(match_state)
+    if match_state["phase"] != "reveal":
+        raise HTTPException(400, "You can only shuffle positions during the reveal phase.")
+    if selected_player_flag(match_state):
+        raise HTTPException(400, "Shuffle is only available before choosing your flag.")
+
+    shuffle_piece_positions(match_state, "player")
+    match_state["message"] = "Your squad positions were shuffled."
+    return build_player_view(match_state)
+
+
+@app.post("/api/match/{match_id}/flag/player")
+def choose_player_flag(match_id: str, payload: PlayerFlagRequest) -> dict[str, Any]:
+    match_state = match_or_404(match_id)
+    if resolve_reveal_timeout(match_state):
+        return build_player_view(match_state)
+    if match_state["phase"] != "reveal":
+        raise HTTPException(400, "You can only choose your flag during the reveal phase.")
+
+    player_piece = next(
+        (
+            p for p in match_state["pieces"]
+            if p["id"] == payload.piece_id and p["owner"] == "player" and p["alive"]
+        ),
+        None,
+    )
+    if not player_piece:
+        raise HTTPException(400, "Invalid player piece.")
+
+    for piece in match_state["pieces"]:
+        if piece["owner"] == "player" and piece["alive"]:
+            piece["role"] = "soldier"
+
+    player_piece["role"] = "flag"
+    match_state["message"] = f"Flag placed at row {player_piece['row']}, col {player_piece['col']}."
     return build_player_view(match_state)
 
 
 @app.post("/api/match/{match_id}/turn/player-move")
 def player_move(match_id: str, payload: PlayerMoveRequest) -> dict[str, Any]:
     match_state = match_or_404(match_id)
+    if resolve_turn_timeout(match_state):
+        return build_player_view(match_state)
     if match_state["phase"] != "player_turn":
         raise HTTPException(400, "It is not the player's turn.")
 
@@ -601,6 +674,8 @@ def player_move(match_id: str, payload: PlayerMoveRequest) -> dict[str, Any]:
 @app.post("/api/match/{match_id}/turn/tie-repick")
 def tie_repick(match_id: str, payload: TieRepickRequest) -> dict[str, Any]:
     match_state = match_or_404(match_id)
+    if resolve_turn_timeout(match_state):
+        return build_player_view(match_state)
     pending     = match_state.get("pending_repick")
     if match_state["phase"] != "repick" or not pending:
         raise HTTPException(400, "No tie repick is pending.")
@@ -631,19 +706,19 @@ def tie_repick(match_id: str, payload: TieRepickRequest) -> dict[str, Any]:
 @app.post("/api/match/{match_id}/turn/ai-move")
 def ai_move(match_id: str) -> dict[str, Any]:
     match_state = match_or_404(match_id)
+    if resolve_turn_timeout(match_state):
+        return build_player_view(match_state)
     if match_state["phase"] != "ai_turn":
         raise HTTPException(400, "It is not the AI turn.")
 
-    try:
-        piece, t_row, t_col, reasoning = choose_ai_move_with_claude(match_state)
-    except Exception:
-        piece, t_row, t_col, reasoning = choose_ai_move(match_state)
+    piece, t_row, t_col, reasoning = choose_ai_move(match_state)
 
     if piece is None:
         # AI has no valid moves — pass turn back to player rather than hanging.
         match_state["phase"]        = "player_turn"
         match_state["current_turn"] = "player"
-        match_state["message"]      = "Your turn. Select a piece to move."
+        set_turn_deadline(match_state)
+        match_state["message"]      = "Your turn. Select one of your front units and move to a highlighted square."
         match_state["aiReasoning"]  = reasoning
         return build_player_view(match_state)
 
@@ -652,6 +727,17 @@ def ai_move(match_id: str) -> dict[str, Any]:
     return build_player_view(match_state)
 
 
+@app.post("/api/match/{match_id}/turn/timeout")
+def turn_timeout(match_id: str) -> dict[str, Any]:
+    match_state = match_or_404(match_id)
+    resolve_reveal_timeout(match_state)
+    resolve_turn_timeout(match_state)
+    return build_player_view(match_state)
+
+
 @app.get("/api/match/{match_id}")
 def get_match(match_id: str) -> dict[str, Any]:
-    return build_player_view(match_or_404(match_id))
+    match_state = match_or_404(match_id)
+    resolve_reveal_timeout(match_state)
+    resolve_turn_timeout(match_state)
+    return build_player_view(match_state)

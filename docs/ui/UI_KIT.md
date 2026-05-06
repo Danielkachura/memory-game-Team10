@@ -91,8 +91,8 @@ The visual identity must match or closely echo the original:
 
 | Token | Value | Usage |
 |---|---|---|
-| `--cell-size` | `72px` | Board grid cell size (desktop) |
-| `--unit-size` | `60px` | Character sprite within cell |
+| `--cell-size` | `82px` | Board grid cell size (desktop) |
+| `--unit-size` | `70px` | Character sprite within cell |
 | `--board-gap` | `0px` | No gap between cells (flush grid) |
 | `--sidebar-width` | `220px` | Right sidebar width |
 | `--space-xs` | `6px` | Tight padding |
@@ -109,18 +109,18 @@ The visual identity must match or closely echo the original:
 ┌─────────────────────────────┬──────────────┐
 │ [CPU Name — Blue]           │  RPS LOGO    │
 │ ┌───────────────────────┐   │  (sidebar)   │
-│ │ CPU  CPU  CPU  CPU CPU │   │              │
-│ │ CPU  CPU  CPU  CPU CPU │   │ [Referee     │
+│ │ CPU  CPU  CPU  CPU  CPU  CPU  CPU │   │              │
+│ │ CPU  CPU  CPU  CPU  CPU  CPU  CPU │   │ [Referee     │
 │ │ ·    ·    ·    ·   ·  │   │  character]  │
 │ │ ·    ·    ·    ·   ·  │   │              │
-│ │ P1   P1   P1   P1  P1 │   │ [Timer /     │
-│ │ P1   P1   P1   P1  P1 │   │  Yin-Yang]   │
+│ │ P1   P1   P1   P1   P1   P1   P1 │   │ [Timer /     │
+│ │ P1   P1   P1   P1   P1   P1   P1 │   │  Yin-Yang]   │
 │ └───────────────────────┘   │              │
 │ [Player Name — Red]         │  [? button]  │
 └─────────────────────────────┴──────────────┘
 ```
 
-- 5 columns × 6 rows
+- 7 columns × 6 rows
 - Rows 6–5: CPU (Blue) squad
 - Rows 4–3: Neutral battle zone (empty)
 - Rows 2–1: Player (Red) squad

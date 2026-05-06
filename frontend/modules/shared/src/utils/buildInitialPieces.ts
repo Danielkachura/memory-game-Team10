@@ -1,50 +1,41 @@
-import { Piece, Owner, Weapon, Role } from "../types";
-import { BOARD_COLS, PLAYER_ROWS, AI_ROWS } from "../constants";
+import { Piece, Weapon } from "../types";
+import { AI_ROWS, BOARD_COLS, PLAYER_ROWS, UNITS_PER_SQUAD } from "../constants";
+
+const WEAPON_ROTATION: Weapon[] = ["rock", "paper", "scissors"];
+
+const DEFAULT_WEAPONS: Weapon[] = Array.from(
+  { length: UNITS_PER_SQUAD },
+  (_, index) => WEAPON_ROTATION[index % WEAPON_ROTATION.length]!,
+);
+
+function buildSquad(owner: "player" | "ai", rows: readonly number[], silhouette: boolean, label: string): Piece[] {
+  return Array.from({ length: UNITS_PER_SQUAD }, (_, index) => {
+    const row = rows[Math.floor(index / BOARD_COLS)]!;
+    const col = (index % BOARD_COLS) + 1;
+
+    return {
+      id: `${owner}-r${row}c${col}`,
+      owner,
+      row,
+      col,
+      weapon: DEFAULT_WEAPONS[index],
+      role: "soldier",
+      alive: true,
+      label,
+      weaponIcon: null,
+      roleIcon: null,
+      silhouette,
+    };
+  });
+}
 
 /**
- * buildInitialPieces — generates a starting roster for both squads.
+ * buildInitialPieces generates a canonical starting roster for both squads.
  * Used for offline mode or fallback.
  */
 export function buildInitialPieces(): Piece[] {
-  const pieces: Piece[] = [];
-
-  // Player Pieces (Rows 1–2)
-  for (const row of PLAYER_ROWS) {
-    for (let col = 1; col <= BOARD_COLS; col++) {
-      pieces.push({
-        id: `player-r${row}c${col}`,
-        owner: "player",
-        row,
-        col,
-        weapon: "rock", // Default
-        role: "soldier",
-        alive: true,
-        label: "Soldier",
-        weaponIcon: null,
-        roleIcon: null,
-        silhouette: false,
-      });
-    }
-  }
-
-  // AI Pieces (Rows 5–6)
-  for (const row of AI_ROWS) {
-    for (let col = 1; col <= BOARD_COLS; col++) {
-      pieces.push({
-        id: `ai-r${row}c${col}`,
-        owner: "ai",
-        row,
-        col,
-        weapon: null,
-        role: null,
-        alive: true,
-        label: "Hidden",
-        weaponIcon: null,
-        roleIcon: null,
-        silhouette: true,
-      });
-    }
-  }
-
-  return pieces;
+  return [
+    ...buildSquad("player", PLAYER_ROWS, false, "Soldier"),
+    ...buildSquad("ai", AI_ROWS, true, "Hidden"),
+  ];
 }

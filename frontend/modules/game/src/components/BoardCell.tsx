@@ -5,6 +5,7 @@ import { UnitSprite } from "./UnitSprite";
 interface BoardCellProps {
   cell:          BoardCell;
   selected:      boolean;
+  isSelectable:  boolean;
   isValidMove:   boolean;
   isValidTarget: boolean;
   isRevealPhase: boolean;
@@ -15,10 +16,20 @@ interface BoardCellProps {
 }
 
 export function BoardCellComponent({
-  cell, selected, isValidMove, isValidTarget, isRevealPhase, isDying, isMoving, onPieceClick, onCellClick,
+  cell, selected, isSelectable, isValidMove, isValidTarget, isRevealPhase, isDying, isMoving, onPieceClick, onCellClick,
 }: BoardCellProps) {
-  const isLight = (cell.row + cell.col) % 2 === 0;
-  const neutral = (NEUTRAL_ROWS as readonly number[]).includes(cell.row);
+  const isLight      = (cell.row + cell.col) % 2 === 0;
+  const neutral      = (NEUTRAL_ROWS as readonly number[]).includes(cell.row);
+  const isRevealPlayerPiece = isRevealPhase && cell.piece?.owner === "player" && cell.piece?.alive;
+  const cursor = isValidMove
+    ? "pointer"
+    : isValidTarget
+    ? "crosshair"
+    : isRevealPlayerPiece
+    ? "pointer"
+    : isSelectable && !isRevealPhase
+    ? "pointer"
+    : "default";
 
   return (
     <div
@@ -33,15 +44,17 @@ export function BoardCellComponent({
         display:        "flex",
         alignItems:     "center",
         justifyContent: "center",
-        opacity:        neutral && !cell.piece ? 0.6 : 1,
-        cursor:         isValidMove ? "pointer" : "default",
-        outline:        isValidMove ? "2px inset rgba(100,220,100,0.35)" : undefined,
+        opacity:        neutral && !cell.piece ? 0.55 : 1,
+        cursor,
+        pointerEvents:  "auto",
+        outline:        isValidMove ? "2px inset rgba(255,215,0,0.4)" : undefined,
       }}
     >
       {cell.piece ? (
         <UnitSprite
           piece={cell.piece}
           selected={selected}
+          isSelectable={isSelectable}
           isValidTarget={isValidTarget}
           isRevealPhase={isRevealPhase}
           isDying={isDying}
@@ -49,14 +62,14 @@ export function BoardCellComponent({
           onClick={() => onPieceClick(cell.piece!)}
         />
       ) : isValidMove ? (
-        /* green dot on empty valid cells */
+        /* Gold dot on empty valid cells */
         <div
           style={{
-            width:        "38%",
-            height:       "38%",
+            width:        "34%",
+            height:       "34%",
             borderRadius: "50%",
-            background:   "rgba(80, 210, 80, 0.75)",
-            boxShadow:    "0 0 8px rgba(80,210,80,0.6)",
+            background:   "rgba(255, 215, 0, 0.7)",
+            boxShadow:    "0 0 10px rgba(255,215,0,0.5)",
             animation:    "targetPulse 0.9s ease infinite",
             pointerEvents: "none",
           }}

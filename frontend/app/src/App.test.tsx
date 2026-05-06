@@ -6,6 +6,8 @@ const mockState = {
   matchId: "test01",
   board: [],
   phase: "reveal",
+  currentTurn: "player",
+  difficulty: "medium",
   message: "Test message",
   stats: {
     durationSeconds: 0,
@@ -15,6 +17,7 @@ const mockState = {
     decoyAbsorbed: 0,
   },
   revealEndsAt: Date.now() / 1000 + 10,
+  turnEndsAt: null,
   duel: null,
   result: null,
 };
