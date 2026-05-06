@@ -41,15 +41,8 @@ const DIFFICULTIES: Array<{ id: Difficulty; label: string; detail: string }> = [
   { id: "hard",   label: "Hard",   detail: "AI pressures known favorable matchups." },
 ];
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "") ?? "";
-
-function apiUrl(path: string): string {
-  if (!API_BASE_URL) return path;
-  return `${API_BASE_URL}${path}`;
-}
-
 async function postJson<T>(url: string, body?: unknown): Promise<T> {
-  const response = await fetch(apiUrl(url), {
+  const response = await fetch(url, {
     method:  "POST",
     headers: { "content-type": "application/json" },
     body:    body === undefined ? "{}" : JSON.stringify(body),

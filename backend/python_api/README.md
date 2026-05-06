@@ -1,9 +1,10 @@
 # Squad RPS Python API
 
-Python backend for Squad RPS game state, duel resolution, and CPU logic.
+Python backend for the Squad RPS Claude proxy.
 
 ## Responsibilities
 
+- secure proxy for Anthropic Claude API
 - source of truth for hidden game state (weapons, roles)
 - squad generation logic
 - AI opponent move selection logic
@@ -22,16 +23,12 @@ python -m uvicorn backend.python_api.app:app --host 127.0.0.1 --port 8000 --relo
 Required:
 
 ```bash
-PORT=8000
+ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 Optional:
 
 ```bash
-RENDER_EXTERNAL_URL=https://your-backend.example.com
+ANTHROPIC_TIMEOUT_SECONDS=8
+ANTHROPIC_MODEL=claude-sonnet-4-6
 ```
-
-Note:
-
-- The current backend has no AI/LLM API dependency.
-- Keep deployment secrets out of the browser bundle.
