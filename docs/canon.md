@@ -1,0 +1,13 @@
+- board: `7×6` (7 columns × 6 rows — 42 squares total)
+- unit types: `rock`, `paper`, `scissors`, `flag`, `decoy`
+- owners: `player` (Red, rows 1–2), `cpu` (Blue, rows 5–6)
+- neutral zone: rows 3–4 (empty at game start)
+- team size: 14 units per side (2 rows × 7 cols) = 28 total on board
+- movement: none for MVP — direct attack selection
+- weapon distribution: balanced across 14 units per squad
+- battle reveal: both weapons shown during duel; winner's weapon hides again; loser removed
+- win: enemy `flag` eliminated → instant win; own `flag` eliminated → instant loss
+- decoy: invulnerable; becomes killable if last enemy unit alive
+- tie: both re-pick; soft cap 5 ties → forced random
+- role assignment: 1 Flag + 1 Decoy per squad, randomly after 10s reveal
+- NO AI API — CPU uses local logic only

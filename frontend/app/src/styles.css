@@ -1,0 +1,178 @@
+/* ============================================================
+   Squad RPS — Design System (Modern Dark Mode)
+   Sprint 06 founder-approved visual override.
+   Gameplay remains 7×6 — color palette upgraded to dark mode.
+   ============================================================ */
+
+/* ── Google Fonts loaded via index.html ─────────────────────── */
+
+/* ── Reset ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  margin:  0;
+  padding: 0;
+  min-height: 100%;
+}
+
+/* ── Design Tokens — Dark Mode ───────────────────────────────── */
+:root {
+  /* Board */
+  --color-board-light:   #3D4A32;
+  --color-board-dark:    #2A3323;
+  --color-board-border:  rgba(180, 200, 150, 0.22);
+  --color-board-bg:      #141811;
+
+  /* Teams */
+  --color-player:        #FF4B4B;
+  --color-player-light:  #FF6B6B;
+  --color-cpu:           #00A3FF;
+  --color-cpu-light:     #33B8FF;
+
+  /* Selection */
+  --color-selected:      #FFD700;
+  --color-valid-target:  #FFD700;
+
+  /* Special roles */
+  --color-flag:          #FFD700;
+  --color-decoy:         #CF6FFF;
+
+  /* Outcome */
+  --color-success:       #44DD66;
+  --color-danger:        #FF4444;
+  --color-warning:       #FFAA22;
+
+  /* Sidebar / surfaces */
+  --color-sidebar-bg:    rgba(255, 255, 255, 0.04);
+  --color-logo-text:     #AADD22;
+  --color-timer-bg:      #1E2618;
+  --color-timer-fill:    #88CC22;
+
+  /* Text */
+  --color-text:          #E0E0E0;
+  --color-text-muted:    #A0A0A0;
+  --color-label-player:  #FF4B4B;
+  --color-label-cpu:     #00A3FF;
+
+  /* Sizing */
+  --cell-size:       clamp(44px, 12vw, 82px);
+  --unit-size:       calc(var(--cell-size) - 12px);
+  --sidebar-width:   clamp(200px, 30vw, 240px);
+
+  /* Spacing */
+  --space-xs:  6px;
+  --space-sm:  10px;
+  --space-md:  16px;
+  --space-lg:  24px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 12px;
+
+  /* Motion */
+  --motion-fast:   150ms;
+  --motion-medium: 300ms;
+  --motion-duel:  1000ms;
+  --motion-hide:   600ms;
+
+  /* Typography — modern sans-serif (loaded from Google Fonts) */
+  --font-heading: "Poppins", "Inter", "Arial Black", sans-serif;
+  --font-body:    "Inter", "Poppins", "Arial", sans-serif;
+  --font-ui:      "Inter", "Segoe UI", "Verdana", sans-serif;
+  --font-mono:    "Courier New", monospace;
+}
+
+body {
+  background:  var(--color-board-bg);
+  font-family: var(--font-ui);
+  color:       var(--color-text);
+  overflow-x:  hidden;
+}
+
+/* ── Animations ─────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,68,0.6); }
+  50%       { box-shadow: 0 0 0 6px rgba(255,255,68,0); }
+}
+
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px); }
+  40%      { transform: translateX(6px); }
+  60%      { transform: translateX(-4px); }
+  80%      { transform: translateX(4px); }
+}
+
+@keyframes pop {
+  0%   { transform: scale(0.7); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes targetPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(0.85); }
+}
+
+@keyframes unitDie {
+  0%   { opacity: 1; transform: scale(1) rotate(0deg); }
+  50%  { opacity: 0.5; transform: scale(1.2) rotate(15deg); }
+  100% { opacity: 0; transform: scale(0.4) rotate(-30deg); }
+}
+
+@keyframes playerGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 75, 75, 0); }
+  50%       { box-shadow: 0 0 8px 2px rgba(255, 75, 75, 0.25); }
+}
+
+.piece-dying {
+  animation: unitDie 0.5s ease forwards;
+}
+
+.duel-overlay {
+  animation: fadeIn 0.25s ease;
+}
+
+.game-over-overlay {
+  animation: pop 0.5s ease;
+}
+
+/* ── Hero jump spritesheet — 4-frame horizontal strip ────────────── */
+@keyframes heroJumpFrames {
+  0%   { background-position: 0%      0%; animation-timing-function: step-end; }
+  25%  { background-position: 33.33%  0%; animation-timing-function: step-end; }
+  50%  { background-position: 66.67%  0%; animation-timing-function: step-end; }
+  75%  { background-position: 100%    0%; animation-timing-function: step-end; }
+  100% { background-position: 100%    0%; }
+}
+
+.hero-jump-sprite {
+  background-size:   400% 100%;
+  background-repeat: no-repeat;
+  image-rendering:   pixelated;
+  animation:         heroJumpFrames 0.5s linear forwards;
+}
+
+/* ── Referee spritesheet — 4×3 grid ─────────────────────────────── */
+@keyframes refBattle {
+  0%,  49% { background-position: 33.33% 0%; }
+  50%, 100% { background-position: 0%    0%; }
+}
+
+@keyframes refCheerSprite {
+  0%,  30% { background-position: 0%     0%; }
+  31%, 65% { background-position: 66.67% 0%; }
+  66%, 100%{ background-position: 0%     0%; }
+}
+
+.referee-sprite {
+  background-size:   400% 300%;
+  background-repeat: no-repeat;
+  background-image:  url('/referee_flags_matrix.png');
+  image-rendering:   pixelated;
+}

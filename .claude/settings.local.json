@@ -1,0 +1,44 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm test *)",
+      "Bash(npm install *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(python *)",
+      "Bash(pip install *)",
+      "Bash(pytest *)",
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git branch *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git stash *)",
+      "Bash(git fetch *)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(ls *)",
+      "Bash(pwd)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(curl -s -X POST http://127.0.0.1:8000/api/match/create -H \"Content-Type: application/json\" -d \"{\\\\\"difficulty\\\\\":\\\\\"medium\\\\\"}\")",
+      "Bash(curl *)",
+      "Bash(Get-Process -Name node -ErrorAction SilentlyContinue)",
+      "Bash(Stop-Process -Force)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(powershell.exe -Command \"Get-Process -Name python* | Stop-Process -Force\")",
+      "Bash(uvicorn backend.python_api.app:app --host 127.0.0.1 --port 8000)",
+      "Bash(Get-ChildItem -Recurse -Force)",
+      "Bash(mkdir -p \"C:/Users/97252/Desktop/Projects/RPS-game-Team10/frontend/app/public/audio\")",
+      "Bash(cp \"C:/Users/97252/Desktop/Projects/RPS-game-Team10/assets/audio/\"* \"C:/Users/97252/Desktop/Projects/RPS-game-Team10/frontend/app/public/audio/\")",
+      "Bash(powershell *)"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(git reset --hard *)",
+      "Bash(rm -rf *)",
+      "Bash(npm publish *)"
+    ]
+  }
+}
