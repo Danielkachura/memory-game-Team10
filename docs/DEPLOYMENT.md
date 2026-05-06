@@ -57,8 +57,8 @@ Checklist:
 
 Alternative root-repo setup:
 
-- If Railway is pointed at the repository root, it should use [`start.sh`](C:/Projects/Sar/StandAlone/RPS-Squad/start.sh) to boot the backend service.
-- Keep the Railway service root at the repo root only if the platform is configured to honor the script entrypoint.
+- If Railway is pointed at the repository root, it should detect [`requirements.txt`](C:/Projects/Sar/StandAlone/RPS-Squad/requirements.txt) and use [`start.sh`](C:/Projects/Sar/StandAlone/RPS-Squad/start.sh) to boot the backend service.
+- Keep the Railway service root at the repo root only if the platform is configured to honor the script entrypoint and Python dependency install.
 - If auto-detection still fails, set the Railway service root to `backend/python_api` explicitly.
 
 ## CTO Ownership
