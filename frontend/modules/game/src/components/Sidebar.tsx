@@ -72,7 +72,7 @@ export function Sidebar({
     >
       {/* Logo */}
       <img
-        src="/game_logo_main.png"
+        src="/game_logo_squad_rps.png"
         alt="Squad RPS"
         style={{ width: "120px", objectFit: "contain" }}
         onError={(e) => {

@@ -9,8 +9,9 @@ import { GameOverScreen } from "./GameOverScreen";
 import { StartScreen } from "./StartScreen";
 import { RefereePanel } from "./RefereePanel";
 import { FallingLeavesBackground } from "./FallingLeavesBackground";
+import { VideoBackground } from "./VideoBackground";
 
-const GAME_BACKGROUND = "linear-gradient(rgba(10, 14, 10, 0.64), rgba(10, 14, 10, 0.84)), url('/game_background_main.png')";
+const GAME_BACKGROUND_OVERLAY = "linear-gradient(rgba(10, 14, 10, 0.64), rgba(10, 14, 10, 0.84))";
 
 const REVEAL_PICK_FLAG_LABEL =
   "\u05e2\u05e8\u05d1\u05d1 \u05d7\u05d9\u05d9\u05dc\u05d9\u05dd \u05d5\u05d0\u05d6 \u05dc\u05d7\u05e5 \u05e2\u05dc \u05d0\u05d7\u05d3 \u05d4\u05d7\u05d9\u05d9\u05dc\u05d9\u05dd \u05e9\u05dc\u05da \u05db\u05d3\u05d9 \u05dc\u05d1\u05d7\u05d5\u05e8 \u05d3\u05d2\u05dc";
@@ -78,18 +79,18 @@ export function GameScreen() {
       <div
         style={{
           minHeight: "100vh",
+          position: "relative",
+          overflow: "hidden",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           flexDirection: "column",
           gap: "16px",
           backgroundColor: "var(--color-board-bg)",
-          backgroundImage: GAME_BACKGROUND,
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-          backgroundSize: "cover",
         }}
       >
+        <VideoBackground overlay={GAME_BACKGROUND_OVERLAY} />
+
         <div style={{ fontFamily: "var(--font-heading)", fontSize: "1.6rem", color: "var(--color-danger)" }}>
           Error
         </div>
@@ -152,16 +153,13 @@ export function GameScreen() {
         minHeight: "100vh",
         position: "relative",
         backgroundColor: "var(--color-board-bg)",
-        backgroundImage: GAME_BACKGROUND,
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-        backgroundSize: "cover",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: "var(--space-md)",
       }}
     >
+      <VideoBackground overlay={GAME_BACKGROUND_OVERLAY} />
       <FallingLeavesBackground />
 
       <div

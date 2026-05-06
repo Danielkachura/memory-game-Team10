@@ -81,8 +81,15 @@ export function FallingLeavesBackground() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    if (typeof navigator !== "undefined" && /jsdom/i.test(navigator.userAgent)) return;
 
-    const context = canvas.getContext("2d");
+    let context: CanvasRenderingContext2D | null = null;
+    try {
+      context = canvas.getContext("2d");
+    } catch {
+      return;
+    }
+
     if (!context) return;
 
     let width = window.innerWidth;

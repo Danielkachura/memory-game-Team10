@@ -23,7 +23,7 @@ const CPU_IMG: Record<string, string> = {
   hidden:   "/character_blue_front_nobg.png",
   rock:     "/character_blue_idle_nobg.png",
   paper:    "/character_blue_idle_nobg.png",
-  scissors: "/logo_rps_online_nobg.png",
+  scissors: "/character_blue_scissors_nobg.png",
   flag:     "/character_blue_flag_nobg.png",
   idle:     "/character_blue_idle_nobg.png",
 };
